@@ -23,6 +23,7 @@ import { cdCommand } from './commands/cd.js'
 import { promptCommand } from './commands/prompt.js'
 import { runCommand } from './commands/run.js'
 import { chatCommand } from './commands/chat.js'
+import { restartCommand, handleRestartCallback } from './commands/restart.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
@@ -58,6 +59,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   bot.command('prompt', promptCommand)
   bot.command('run', runCommand)
   bot.command('chat', chatCommand)
+  bot.command('restart', restartCommand)
 
   // Bookmark shortcuts /1 through /9
   for (let i = 1; i <= 9; i++) {
@@ -99,6 +101,10 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return next()
     const data = ctx.callbackQuery.data
     if (!data) return next()
+
+    // Restart callback (before plugins)
+    const restartHandled = await handleRestartCallback(ctx, data)
+    if (restartHandled) return
 
     for (const plugin of pluginsWithCallback) {
       const handled = await plugin.onCallback!(ctx, data)
