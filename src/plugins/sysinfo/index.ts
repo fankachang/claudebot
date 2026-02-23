@@ -34,6 +34,38 @@ async function getGpuInfo(): Promise<string> {
   }
 }
 
+interface DiskInfo {
+  readonly drive: string
+  readonly total: string
+  readonly free: string
+  readonly usedPercent: string
+}
+
+async function getDiskInfo(): Promise<readonly DiskInfo[]> {
+  try {
+    const { stdout } = await execFileAsync('powershell', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | ForEach-Object { \"$($_.DeviceID)|$($_.Size)|$($_.FreeSpace)\" }",
+    ], { timeout: 5_000, windowsHide: true })
+
+    return stdout.trim().split('\n').filter(Boolean).map((line) => {
+      const [drive, sizeStr, freeStr] = line.trim().split('|')
+      const total = Number(sizeStr)
+      const free = Number(freeStr)
+      const used = total - free
+      const usedPercent = total > 0 ? ((used / total) * 100).toFixed(0) : '0'
+      return {
+        drive,
+        total: formatBytes(total),
+        free: formatBytes(free),
+        usedPercent,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
 async function sysinfoCommand(ctx: BotContext): Promise<void> {
   const cpu = cpus()
   const cpuModel = cpu.length > 0 ? cpu[0].model : '未知'
@@ -43,22 +75,30 @@ async function sysinfoCommand(ctx: BotContext): Promise<void> {
   const usedMem = totalMem - freeMem
   const memPercent = ((usedMem / totalMem) * 100).toFixed(0)
 
-  const gpu = await getGpuInfo()
+  const [gpu, disks] = await Promise.all([getGpuInfo(), getDiskInfo()])
 
   const info = [
     `🖥️ *系統資訊*`,
     ``,
-    `**主機:** ${hostname()}`,
-    `**平台:** ${platform()} ${arch()}`,
-    `**CPU:** ${cpuModel}`,
-    `**核心:** ${cpuCores}`,
-    `**GPU:** ${gpu}`,
-    `**記憶體:** ${formatBytes(usedMem)} / ${formatBytes(totalMem)} (${memPercent}%)`,
-    `**可用:** ${formatBytes(freeMem)}`,
-    `**開機時間:** ${formatUptime(uptime())}`,
-  ].join('\n')
+    `*主機:* ${hostname()}`,
+    `*平台:* ${platform()} ${arch()}`,
+    `*CPU:* ${cpuModel}`,
+    `*核心:* ${cpuCores}`,
+    `*GPU:* ${gpu}`,
+    `*記憶體:* ${formatBytes(usedMem)} / ${formatBytes(totalMem)} (${memPercent}%)`,
+    `*可用:* ${formatBytes(freeMem)}`,
+    `*開機時間:* ${formatUptime(uptime())}`,
+  ]
 
-  await ctx.reply(info, { parse_mode: 'Markdown' })
+  if (disks.length > 0) {
+    info.push(``)
+    info.push(`💾 *硬碟*`)
+    for (const d of disks) {
+      info.push(`*${d.drive}* ${d.free} 可用 / ${d.total} (已用 ${d.usedPercent}%)`)
+    }
+  }
+
+  await ctx.reply(info.join('\n'), { parse_mode: 'Markdown' })
 }
 
 const sysinfoPlugin: Plugin = {
