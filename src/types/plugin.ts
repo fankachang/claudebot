@@ -11,5 +11,6 @@ export interface Plugin {
   readonly description: string
   readonly commands: readonly PluginCommand[]
   readonly onMessage?: (ctx: BotContext) => Promise<boolean>
+  readonly onCallback?: (ctx: BotContext, data: string) => Promise<boolean>
   readonly cleanup?: () => Promise<void>
 }

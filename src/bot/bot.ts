@@ -76,8 +76,8 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   const reminderPlugin = plugins.find((p) => p.name === 'reminder')
   if (reminderPlugin) {
     const { setReminderSendFn } = await import('../plugins/reminder/index.js')
-    setReminderSendFn(async (chatId, text) => {
-      await bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown' })
+    setReminderSendFn(async (chatId, text, extra) => {
+      await bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra })
     })
   }
 
@@ -93,8 +93,19 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     })
   }
 
-  // Callback queries (inline keyboard)
-  bot.on('callback_query', callbackHandler)
+  // Callback queries: plugins first, then core handler
+  const pluginsWithCallback = plugins.filter((p) => p.onCallback)
+  bot.on('callback_query', async (ctx, next) => {
+    if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return next()
+    const data = ctx.callbackQuery.data
+    if (!data) return next()
+
+    for (const plugin of pluginsWithCallback) {
+      const handled = await plugin.onCallback!(ctx, data)
+      if (handled) return
+    }
+    return callbackHandler(ctx)
+  })
 
   // Photo and document messages → Claude
   bot.on('photo', photoHandler)
