@@ -4,6 +4,36 @@ Telegram bot to remotely control Claude Code CLI from your phone.
 
 Send prompts, get streaming responses, manage multiple projects -- all from Telegram.
 
+## Features
+
+**Real-time streaming** -- See Claude's progress live. Status updates every second with elapsed time, tool count, and tool names. No waiting until the end.
+
+**Multi-project workspace** -- Switch between projects instantly. Each project maintains its own Claude session with automatic `--resume` continuity. Cross-project delegation via `@run(project) prompt` lets Claude autonomously chain tasks across repos.
+
+**Queue system** -- Send multiple requests without waiting. They execute in order. Cross-bot file locking prevents two bots from modifying the same project simultaneously.
+
+**Interactive responses** -- Claude's yes/no questions get confirm buttons. Non-question responses get smart follow-up suggestions generated contextually.
+
+**Multi-bot support** -- Run 4+ bots from one codebase with separate `.env` files. Single launcher starts them all. Add bots to a Telegram group with @mention routing for team-style workflows.
+
+**Plugin system** -- Extend the bot without Claude. Screenshots, dice, reminders, system info -- lightweight commands that run instantly. Drop a folder in `src/plugins/` to add your own.
+
+**Security** -- Whitelist-based chat ID restriction, optional bcrypt password auth, rate limiting, and `shell: false` process spawning to prevent command injection.
+
+**Quality of life** -- Message batching (2s window), `!` prefix to interrupt and redirect, image support (send and receive), idle entertainment during long waits, 120s long-running task reminder with `/cancel` hint, bookmarks for quick project switching, per-project todos.
+
+## How It Compares
+
+| | ClaudeBot | tmux bridge approach | API proxy approach |
+|---|---|---|---|
+| **Real-time output** | Live streaming with tool progress | Response only after completion | N/A (different layer) |
+| **Queue & concurrency** | Full queue with cross-bot mutex | Single request, no queue | N/A |
+| **Authentication** | Chat ID + bcrypt + rate limit | None | API key based |
+| **Multi-project** | Session per project, auto-resume | Single tmux session | N/A |
+| **Interactive UI** | Confirm buttons + suggestions | Plain text | Web dashboard |
+| **Extensibility** | Plugin system | Shell scripts | YAML config |
+| **Setup** | `npm install && npm run dev` | tmux + Cloudflare Tunnel + hooks | Go binary + YAML config |
+
 ## Architecture
 
 ```
