@@ -52,8 +52,33 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
   const threadId = ctx.message?.message_thread_id
   const state = getUserState(chatId, threadId)
 
+  // @chat one-shot: general chat without selecting a project
+  const chatMatch = text.match(/^@chat[\s(](.+?)[\s)]*$/s) ?? text.match(/^@chat\s+(.+)$/s)
+  if (chatMatch) {
+    const chatPrompt = chatMatch[1].replace(/^\(|\)$/g, '').trim()
+    if (chatPrompt) {
+      const generalProject = { name: 'general', path: process.cwd() }
+      const sessionId = getSessionId(generalProject.path)
+      enqueue({
+        chatId,
+        prompt: chatPrompt,
+        project: generalProject,
+        model: state.model,
+        sessionId,
+        imagePaths: [],
+      })
+      return
+    }
+  }
+
   if (!state.selectedProject) {
-    await ctx.reply('\u{7528} /projects \u{9078}\u{64C7}\u{5C08}\u{6848}\u{FF0C}\u{6216} /chat \u{9032}\u{5165}\u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\u{3002}')
+    await ctx.reply(
+      '*ClaudeBot* \u{2014} Claude Code \u{9059}\u{7AEF}\u{63A7}\u{5236}\n\n'
+      + '\u{1F4C2} /projects \u{2014} \u{9078}\u{64C7}\u{5C08}\u{6848}\u{4F86}\u{64CD}\u{4F5C}\u{7A0B}\u{5F0F}\u{78BC}\n'
+      + '\u{1F4AC} /chat \u{2014} \u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\n'
+      + '\u{26A1} `@chat \u{4F60}\u{7684}\u{554F}\u{984C}` \u{2014} \u{5FEB}\u{901F}\u{63D0}\u{554F}',
+      { parse_mode: 'Markdown' }
+    )
     return
   }
 
