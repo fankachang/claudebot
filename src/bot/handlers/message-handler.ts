@@ -5,7 +5,10 @@ import { enqueue, isProcessing, getQueueLength } from '../../claude/queue.js'
 import { cancelRunning } from '../../claude/claude-runner.js'
 
 const COLLECT_MS = 1000
+const DEFAULT_CWD = process.cwd()
+const DEFAULT_PROJECT = { name: 'general', path: DEFAULT_CWD }
 const pendingMessages = new Map<number, { texts: string[]; timer: ReturnType<typeof setTimeout> }>()
+let hintedChats = new Set<number>()
 
 function extractMentionText(ctx: BotContext, rawText: string): string | null {
   const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
@@ -51,12 +54,14 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
 
   const threadId = ctx.message?.message_thread_id
   const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) {
-    await ctx.reply('\u{5C1A}\u{672A}\u{9078}\u{64C7}\u{5C08}\u{6848}\u{3002}\u{7528} /projects \u{9078}\u{64C7}\u{4E00}\u{500B}\u{3002}')
-    return
+  const project = state.selectedProject ?? DEFAULT_PROJECT
+
+  // Hint once per session if no project selected
+  if (!state.selectedProject && !hintedChats.has(chatId)) {
+    hintedChats.add(chatId)
+    await ctx.reply('\u{1F4A1} \u{5C1A}\u{672A}\u{9078}\u{64C7}\u{5C08}\u{6848}\u{FF0C}\u{4F7F}\u{7528}\u{901A}\u{7528}\u{6A21}\u{5F0F}\u{3002}\u{7528} /projects \u{9078}\u{64C7}\u{5C08}\u{6848}\u{53EF}\u{4EE5}\u{64CD}\u{4F5C}\u{7A0B}\u{5F0F}\u{78BC}\u{3002}')
   }
 
-  const project = state.selectedProject
   const projectProcessing = isProcessing(project.path)
 
   // Steer mode: message starts with "!" to cancel current and replace
@@ -91,7 +96,7 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
 
   pending = {
     texts: [text],
-    timer: setTimeout(() => flushMessages(chatId), COLLECT_MS),
+    timer: setTimeout(() => flushMessages(chatId, threadId), COLLECT_MS),
   }
   pendingMessages.set(chatId, pending)
 
@@ -107,9 +112,7 @@ function flushMessages(chatId: number, threadId?: number): void {
   pendingMessages.delete(chatId)
 
   const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) return
-
-  const project = state.selectedProject
+  const project = state.selectedProject ?? DEFAULT_PROJECT
   const sessionId = getSessionId(project.path)
   const combined = pending.texts.join('\n\n')
 

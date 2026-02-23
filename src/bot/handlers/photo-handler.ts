@@ -19,10 +19,7 @@ export async function photoHandler(ctx: BotContext): Promise<void> {
   if (!chatId) return
 
   const state = getUserState(chatId)
-  if (!state.selectedProject) {
-    await ctx.reply('No project selected. Use /projects to pick one first.')
-    return
-  }
+  const project = state.selectedProject ?? { name: 'general', path: process.cwd() }
 
   const message = ctx.message
   if (!message || !('photo' in message) || !message.photo) return
@@ -36,8 +33,6 @@ export async function photoHandler(ctx: BotContext): Promise<void> {
 
   const caption = message.caption || ''
   const prompt = caption || DEFAULT_PROMPT
-
-  const project = state.selectedProject
   const sessionId = getSessionId(project.path)
 
   try {
@@ -74,15 +69,10 @@ export async function documentHandler(ctx: BotContext): Promise<void> {
   }
 
   const state = getUserState(chatId)
-  if (!state.selectedProject) {
-    await ctx.reply('No project selected. Use /projects to pick one first.')
-    return
-  }
+  const project = state.selectedProject ?? { name: 'general', path: process.cwd() }
 
   const caption = ('caption' in message ? message.caption : '') || ''
   const prompt = caption || DEFAULT_PROMPT
-
-  const project = state.selectedProject
   const sessionId = getSessionId(project.path)
 
   try {
