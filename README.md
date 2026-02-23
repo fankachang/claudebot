@@ -1,202 +1,170 @@
-# ClaudeBot
+<p align="center">
+  <img src="claudebot-logo.png" alt="ClaudeBot" width="160" />
+</p>
 
-**Not a pipe to Claude. A command center on your phone.**
+<h1 align="center">ClaudeBot</h1>
 
-Control Claude Code CLI, manage projects, run plugins -- all from Telegram. Claude is the engine, but the dashboard, buttons, and toolbox are yours.
+<p align="center">
+  <strong>Not a pipe to Claude. A command center on your phone.</strong>
+</p>
+
+<p align="center">
+  <a href="README.zh-TW.md">繁體中文</a> | English
+</p>
+
+---
+
+Control [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) remotely via Telegram. Manage projects, stream responses in real time, run plugins — all from your pocket.
+
+Claude is the engine. The dashboard, queue, plugins, and interactive UI are yours.
 
 ## Features
 
-**Real-time streaming** -- See Claude's progress live. Status updates every second with elapsed time, tool count, and tool names. No waiting until the end.
-
-**Multi-project workspace** -- Switch between projects instantly. Each project maintains its own Claude session with automatic `--resume` continuity. Cross-project delegation via `@run(project) prompt` lets Claude autonomously chain tasks across repos.
-
-**Queue system** -- Send multiple requests without waiting. They execute in order. Cross-bot file locking prevents two bots from modifying the same project simultaneously.
-
-**Interactive responses** -- Claude's yes/no questions get confirm buttons. Non-question responses get smart follow-up suggestions generated contextually.
-
-**Multi-bot support** -- Run 4+ bots from one codebase with separate `.env` files. Single launcher starts them all. Add bots to a Telegram group with @mention routing for team-style workflows.
-
-**Plugin system** -- Extend the bot without Claude. Screenshots, dice, reminders, system info -- lightweight commands that run instantly. Drop a folder in `src/plugins/` to add your own.
-
-**Security** -- Whitelist-based chat ID restriction, optional bcrypt password auth, rate limiting, and `shell: false` process spawning to prevent command injection.
-
-**Quality of life** -- Message batching (2s window), `!` prefix to interrupt and redirect, image support (send and receive), idle entertainment during long waits, 120s long-running task reminder with `/cancel` hint, bookmarks for quick project switching, per-project todos.
+| Feature | Description |
+|---------|-------------|
+| **Real-time streaming** | Live status every second — elapsed time, tool count, tool names |
+| **Multi-project workspace** | One session per project with automatic `--resume`. Instant switching |
+| **Queue system** | Send multiple requests — they execute in order with cross-bot file locking |
+| **Interactive responses** | Confirm buttons for questions, smart follow-up suggestions for answers |
+| **Cross-project delegation** | `@run(project) prompt` lets Claude chain tasks across repos autonomously |
+| **Multi-bot** | Run 4+ bots from one codebase. Single launcher. @mention routing in groups |
+| **Plugin system** | Screenshots, dice, reminders, sysinfo — instant, zero AI cost. Extensible |
+| **Security** | Chat ID whitelist, bcrypt auth, rate limiting, `shell: false` spawning |
 
 ## How It Compares
 
-| | ClaudeBot | tmux bridge approach | API proxy approach |
+| | ClaudeBot | tmux bridge | API proxy |
 |---|---|---|---|
-| **Real-time output** | Live streaming with tool progress | Response only after completion | N/A (different layer) |
-| **Queue & concurrency** | Full queue with cross-bot mutex | Single request, no queue | N/A |
-| **Authentication** | Chat ID + bcrypt + rate limit | None | API key based |
-| **Multi-project** | Session per project, auto-resume | Single tmux session | N/A |
-| **Interactive UI** | Confirm buttons + suggestions | Plain text | Web dashboard |
-| **Extensibility** | Plugin system | Shell scripts | YAML config |
-| **Setup** | `npm install && npm run dev` | tmux + Cloudflare Tunnel + hooks | Go binary + YAML config |
+| Real-time output | Live streaming with tool progress | After completion only | N/A |
+| Queue & concurrency | Full queue + cross-bot mutex | Single request | N/A |
+| Authentication | Chat ID + bcrypt + rate limit | None | API key |
+| Multi-project | Session per project, auto-resume | Single session | N/A |
+| Interactive UI | Buttons + suggestions | Plain text | Web dashboard |
+| Extensibility | Plugin system | Shell scripts | YAML config |
 
 ## Architecture
 
 ```
-Telegram  -->  ClaudeBot  -->  Claude CLI
-  (you)          |                |
-               Plugins        Projects
-             (built-in)     (via @run)
+Telegram ──> ClaudeBot ──> Claude CLI
+  (you)          │              │
+              Plugins       Projects
+           (zero cost)    (via @run)
 ```
 
-Everything is pluggable:
-
-- **Plugins** -- built-in capabilities (`/screenshot`, `/sysinfo`, `/dice`, ...). Lightweight, instant, no Claude needed. Enable/disable via `.env`.
-- **Projects** -- your code repos, each a self-contained workspace. Claude operates inside them with full context. Cross-project delegation via `/run` or `@run()`.
-
-Plugins extend the bot. Projects extend Claude.
-
-## Prerequisites
-
-- **Node.js** >= 18 ([download](https://nodejs.org/))
-- **Claude CLI** -- install and login:
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  claude    # first run will prompt you to login
-  ```
+- **Plugins** extend the bot — instant commands without Claude (`/screenshot`, `/sysinfo`, `/dice`, `/remind`)
+- **Projects** extend Claude — each repo is a workspace with full context and session history
 
 ## Quick Start
 
+### Prerequisites
+
+- **Node.js** >= 18 ([download](https://nodejs.org/))
+- **Claude CLI** installed and authenticated:
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  claude
+  ```
+
+### Setup
+
 ```bash
-# 1. Clone
 git clone https://github.com/Jeffrey0117/ClaudeBot.git
 cd ClaudeBot
-
-# 2. Install dependencies
 npm install
-
-# 3. Create config
-cp .env.example .env
-```
-
-Edit `.env` with your values (see below), then:
-
-```bash
-# 4. Run
+cp .env.example .env    # edit with your values
 npm run dev
 ```
 
-## Getting Your Config Values
-
-### BOT_TOKEN
-
-1. Open Telegram, search for **@BotFather**
-2. Send `/newbot`, follow the prompts to name your bot
-3. Copy the token it gives you (looks like `123456789:ABCdefGHI...`)
-
-> Each bot token = one bot instance. If running on multiple machines, create a separate bot for each.
-
-### ALLOWED_CHAT_IDS
-
-1. Open Telegram, search for **@userinfobot**
-2. Send any message, it will reply with your **ID** (a number like `123456789`)
-3. For group chats: add @userinfobot to the group, it will show the group's chat ID
-
-### PROJECTS_BASE_DIR
-
-The folder(s) containing your code projects. Supports multiple paths (comma-separated):
-
-```
-# Single directory
-PROJECTS_BASE_DIR=C:\Users\yourname\Desktop\code
-
-# Multiple directories
-PROJECTS_BASE_DIR=C:\Users\yourname\Desktop\code,D:\projects
-```
-
-The bot lists all subdirectories as selectable projects.
-
-## Environment Variables
+### Configuration
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BOT_TOKEN` | Yes | -- | Telegram bot token from @BotFather |
-| `ALLOWED_CHAT_IDS` | Yes | -- | Comma-separated Telegram chat IDs |
-| `PROJECTS_BASE_DIR` | Yes | -- | Comma-separated base directories for projects |
-| `PLUGINS` | No | -- | Comma-separated plugin names to enable |
-| `LOGIN_PASSWORD` | No* | -- | Plain text login password |
-| `LOGIN_PASSWORD_HASH` | No* | -- | Bcrypt hash (recommended for production) |
+| `BOT_TOKEN` | Yes | — | Telegram bot token from [@BotFather](https://t.me/BotFather) |
+| `ALLOWED_CHAT_IDS` | Yes | — | Comma-separated Telegram chat IDs |
+| `PROJECTS_BASE_DIR` | Yes | — | Comma-separated base directories for projects |
+| `PLUGINS` | No | — | Comma-separated plugin names to enable |
+| `LOGIN_PASSWORD` | No\* | — | Plain text login password |
+| `LOGIN_PASSWORD_HASH` | No\* | — | Bcrypt hash (recommended) |
 | `AUTO_AUTH` | No | `true` | Auto-authenticate whitelisted chats |
-| `DEFAULT_MODEL` | No | `sonnet` | Default Claude model (`haiku`/`sonnet`/`opus`) |
+| `DEFAULT_MODEL` | No | `sonnet` | Default model (`haiku` / `sonnet` / `opus`) |
 | `RATE_LIMIT_MAX` | No | `10` | Max messages per window |
-| `RATE_LIMIT_WINDOW_MS` | No | `60000` | Rate limit window in ms |
-| `MAX_TURNS` | No | -- | Max Claude conversation turns |
+| `RATE_LIMIT_WINDOW_MS` | No | `60000` | Rate limit window (ms) |
+| `MAX_TURNS` | No | — | Max Claude conversation turns |
 
-\* When `AUTO_AUTH=true` (default), password is optional. When `AUTO_AUTH=false`, one of `LOGIN_PASSWORD` or `LOGIN_PASSWORD_HASH` is required.
+\* Password is optional when `AUTO_AUTH=true`. When `AUTO_AUTH=false`, one of `LOGIN_PASSWORD` or `LOGIN_PASSWORD_HASH` is required.
 
-### Minimal .env Example
+<details>
+<summary><strong>How to get your config values</strong></summary>
 
-```env
-BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-ALLOWED_CHAT_IDS=123456789
-PROJECTS_BASE_DIR=C:\Users\yourname\Desktop\code
-PLUGINS=screenshot,sysinfo,dice,reminder
+**BOT_TOKEN** — Open Telegram, search for [@BotFather](https://t.me/BotFather), send `/newbot`, copy the token.
+
+**ALLOWED_CHAT_IDS** — Search for [@userinfobot](https://t.me/userinfobot), send any message to get your ID.
+
+**PROJECTS_BASE_DIR** — Path(s) to your code folders:
 ```
+PROJECTS_BASE_DIR=C:\Users\you\code
+PROJECTS_BASE_DIR=C:\Users\you\code,D:\projects
+```
+
+</details>
 
 ## Commands
 
 ### Core
+
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcome message + quick access bookmarks |
-| `/login <password>` | Authenticate (not needed with AUTO_AUTH) |
-| `/logout` | Log out |
 | `/projects` | Browse & select a project |
-| `/select <name>` | Quick switch project by name |
-| `/cd <path>` | Switch working directory |
+| `/select <name>` | Quick switch project |
 | `/model` | Switch model (haiku/sonnet/opus) |
-| `/status` | Show active projects & queue |
+| `/status` | Show queue & active projects |
 | `/cancel` | Stop current process |
 | `/new` | Fresh session (clear history) |
-| `/chat` | General conversation (no project needed) |
-| `/help` | List all commands |
+| `/chat` | General conversation (no project) |
+| `/restart` | Remote bot restart |
 
 ### Bookmarks
+
 | Command | Description |
 |---------|-------------|
-| `/fav` | Show bookmarks with manage buttons |
-| `/fav add` | Bookmark the current project |
-| `/fav remove <slot>` | Remove bookmark from slot |
+| `/fav` | Manage bookmarks |
+| `/fav add` | Bookmark current project |
 | `/1` ~ `/9` | Switch to bookmarked project |
 
 ### Todos
+
 | Command | Description |
 |---------|-------------|
 | `/todo <text>` | Add todo to current project |
-| `/todo @project <text>` | Add todo to a specific project |
-| `/todos` | List todos for current project |
-| `/todos <number>` | Toggle a todo's done status |
-| `/todos done` | Clear all completed todos |
+| `/todo @project <text>` | Add todo to another project |
+| `/todos` | List todos |
+| `/todos <n>` | Toggle done status |
+| `/todos done` | Clear completed |
 
 ### Cross-Project
+
 | Command | Description |
 |---------|-------------|
-| `/run <project> <prompt>` | Execute a task on another project |
-| `/mkdir <name>` | Create a new project folder |
+| `/run <project> <prompt>` | Execute task on another project |
+| `/mkdir <name>` | Create new project folder |
 
-Claude can also delegate across projects autonomously. When Claude's response contains `@run(projectName) description`, the bot auto-enqueues that task on the target project. This enables multi-project workflows from a single prompt.
+Claude can also delegate autonomously — when its response contains `@run(projectName) description`, the bot auto-enqueues the task.
 
-### Usage Tips
-- Send any text message to chat with Claude in the selected project
-- Prefix with `!` to cancel current process and redirect
-- Multiple messages within 2s are batched together
-- Send photos/documents -- Claude can see them
-- Each project maintains its own Claude session
+### Tips
+
+- Send any text to chat with Claude in the selected project
+- Prefix with `!` to interrupt current process and redirect
+- Messages within 2s are batched together
+- Send photos/documents — Claude can see them
 - Use `@chat <message>` for one-shot general conversations
 
 ## Plugin System
 
-Plugins add capabilities to the bot without going through Claude. Enable them in `.env`:
+Plugins run without Claude — instant, zero cost.
 
 ```env
 PLUGINS=screenshot,sysinfo,dice,reminder
 ```
-
-### Built-in Plugins
 
 | Plugin | Commands | Description |
 |--------|----------|-------------|
@@ -205,21 +173,10 @@ PLUGINS=screenshot,sysinfo,dice,reminder
 | `dice` | `/dice`, `/coin` | Roll dice, flip coins |
 | `reminder` | `/remind` | Set timed reminders |
 
-### Screenshot Usage
+<details>
+<summary><strong>Creating your own plugin</strong></summary>
 
-```
-/screenshot           # Capture all screens
-/screenshot 1         # Capture screen 1
-/screenshot list      # List available screens
-/screenshot <URL>     # Capture a web page
-/screenshot <URL> full  # Full-page web capture
-```
-
-Images detected in Claude's responses are automatically sent back as photos.
-
-### Creating Plugins
-
-Each plugin is a folder in `src/plugins/` with an `index.ts` default export:
+Add a folder to `src/plugins/` with an `index.ts`:
 
 ```typescript
 import type { Plugin } from '../../types/plugin.js'
@@ -241,45 +198,32 @@ const myPlugin: Plugin = {
 export default myPlugin
 ```
 
-Add the folder name to `PLUGINS` in `.env` to enable it. The bot auto-registers commands and updates `/help`.
+Add the folder name to `PLUGINS` in `.env`. The bot auto-registers commands and updates `/help`.
 
-## Multi-Bot & Group Support
+</details>
 
-### Multiple Bots
+## Multi-Bot & Groups
 
-Each machine needs its own bot (Telegram limits one instance per token):
+Run multiple bot instances from one codebase:
 
-1. Create a **new bot** via @BotFather (new token)
-2. Use a separate `.env` file (`.env.bot2`, `.env.bot3`, ...)
-3. Run each with: `npx tsx src/index.ts` (with `DOTENV_CONFIG_PATH` pointing to the right file)
+1. Create additional bots via [@BotFather](https://t.me/BotFather)
+2. Create `.env.bot2`, `.env.bot3`, etc.
+3. `npm run dev` launches all bots
 
-Both bots work independently from the same Telegram account.
+Add bots to a Telegram group for team workflows — **@mention routing** sends tasks to specific bots. Each bot shows its current project in its bio.
 
-### Groups
-
-Add multiple bots to a Telegram group for team-style workflows:
-
-- **@mention routing** -- `@MyBot fix the login bug` routes to that specific bot
-- **Dynamic Bio** -- each bot updates its description to show the current project
-- **Pin status** -- project/model info pinned in the chat
-
-## Keep Running (Production)
-
-Use [pm2](https://pm2.keymetrics.io/) to keep the bot alive:
+## Production
 
 ```bash
 npm install -g pm2
 pm2 start npm --name claudebot -- run dev
-pm2 save
-pm2 startup   # auto-start on boot
+pm2 save && pm2 startup
 ```
-
-## Data
-
-Bookmarks and todos persist in `data/` (git-ignored):
-- `data/bookmarks.json` -- project bookmarks per chat
-- `data/todos.json` -- todos per project
 
 ## Tech Stack
 
-Telegraf v4 + TypeScript + Playwright + bcrypt + zod
+Telegraf v4 · TypeScript · Playwright · bcrypt · zod
+
+## License
+
+MIT
