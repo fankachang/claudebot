@@ -33,7 +33,26 @@ export function scanProjects(): readonly ProjectInfo[] {
   return results
 }
 
-export function findProject(name: string): ProjectInfo | null {
+export function findProject(query: string): ProjectInfo | null {
   const projects = scanProjects()
-  return projects.find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null
+  const q = query.toLowerCase().trim()
+
+  // 1. Exact match
+  const exact = projects.find((p) => p.name.toLowerCase() === q)
+  if (exact) return exact
+
+  // 2. Path fragment match (e.g., "Desktop/code/weetube" or "C:\Users\...\weetube")
+  const normalized = q.replace(/\\/g, '/')
+  const byPath = projects.find((p) => p.path.replace(/\\/g, '/').toLowerCase().endsWith(normalized))
+  if (byPath) return byPath
+
+  // 3. Starts-with match (e.g., "wee" → "weetube")
+  const startsWith = projects.filter((p) => p.name.toLowerCase().startsWith(q))
+  if (startsWith.length === 1) return startsWith[0]
+
+  // 4. Contains match (e.g., "tube" → "weetube")
+  const contains = projects.filter((p) => p.name.toLowerCase().includes(q))
+  if (contains.length === 1) return contains[0]
+
+  return null
 }

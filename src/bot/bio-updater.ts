@@ -37,7 +37,7 @@ export async function pinProjectStatus(
   try {
     const msg = await botInstance.telegram.sendMessage(
       chatId,
-      `📌 *${project.name}*\n📂 \`${project.path}\`\n🤖 ${model}`,
+      `📌 *${project.name}* | 🤖 ${model}`,
       { parse_mode: 'Markdown' }
     )
     await botInstance.telegram.pinChatMessage(chatId, msg.message_id, {

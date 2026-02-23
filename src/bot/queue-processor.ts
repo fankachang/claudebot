@@ -8,7 +8,8 @@ import { Input } from 'telegraf'
 import { cleanupImage } from '../utils/image-downloader.js'
 import { splitText } from '../utils/text-splitter.js'
 import { detectImagePaths } from '../utils/image-detector.js'
-import { parseCrossProjectTasks } from '../utils/cross-project-parser.js'
+import { parseCrossProjectTasks, stripRunDirectives } from '../utils/cross-project-parser.js'
+import { getRandomTidbit } from '../utils/idle-tidbits.js'
 import { getSessionId } from '../claude/session-store.js'
 
 const TIMEOUT_MS = 30 * 60 * 1000
@@ -43,11 +44,14 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         }
       }
 
+      let tidbitTimer: ReturnType<typeof setTimeout> | null = null
+
       const done = () => {
         if (resolved) return
         resolved = true
         clearInterval(typingInterval)
         clearInterval(tickInterval)
+        if (tidbitTimer) clearTimeout(tidbitTimer)
         cleanupImages()
         resolve()
       }
@@ -83,6 +87,17 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
       // Tick every second for live elapsed time
       const tickInterval = setInterval(updateStatus, 1000)
 
+      // Idle entertainment: send fun tidbits during long waits
+      const TIDBIT_DELAY_MS = 15_000
+      const TIDBIT_INTERVAL_MS = 30_000 + Math.random() * 15_000
+
+      tidbitTimer = setTimeout(function sendTidbit() {
+        if (resolved) return
+        const tidbit = getRandomTidbit()
+        telegram.sendMessage(item.chatId, tidbit).catch(() => {})
+        tidbitTimer = setTimeout(sendTidbit, TIDBIT_INTERVAL_MS)
+      }, TIDBIT_DELAY_MS)
+
       runClaude({
         prompt: item.prompt,
         projectPath: item.project.path,
@@ -116,7 +131,8 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
             ).catch(() => {})
 
             // Detect and send any image files mentioned in the response
-            const responseText = result.resultText || accumulated || ''
+            const rawText = result.resultText || accumulated || ''
+            const responseText = stripRunDirectives(rawText)
             const detectedImages = detectImagePaths(responseText)
             const validImages = detectedImages.filter((p) => existsSync(p))
 
@@ -133,8 +149,10 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
 
             // After images, send text response, then check for cross-project tasks
             imageChain.then(() => {
+              // Dispatch cross-project tasks from raw text (before stripping)
+              dispatchCrossProjectTasks(telegram, item, rawText)
+
               if (!responseText) {
-                dispatchCrossProjectTasks(telegram, item, responseText)
                 done()
                 return
               }
@@ -146,10 +164,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
                   telegram.sendMessage(item.chatId, chunk).then(() => {})
                 )
               }
-              chain.then(() => {
-                dispatchCrossProjectTasks(telegram, item, responseText)
-                done()
-              }).catch(() => done())
+              chain.then(() => done()).catch(() => done())
             }).catch(() => done())
           } catch (err) {
             console.error('[queue] onResult error:', err)

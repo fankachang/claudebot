@@ -13,36 +13,44 @@ export async function runCommand(ctx: BotContext): Promise<void> {
 
   if (!rest) {
     await ctx.reply(
-      '用法: `/run <專案> <提示>`\n範例: `/run weetube 更新 API endpoint`',
+      '用法: `/run <專案> <提示>`\n範例: `/run weetube 更新 API endpoint`\n\n支援模糊匹配：`wee` → weetube',
       { parse_mode: 'Markdown' }
     )
     return
   }
 
-  // First word is project name, rest is prompt
-  const spaceIdx = rest.indexOf(' ')
-  if (spaceIdx === -1) {
+  // Try progressively longer prefixes as project name
+  // e.g., "my project do something" → try "my", then "my project", etc.
+  const words = rest.split(/\s+/)
+  let project = null
+  let splitAt = 0
+
+  for (let i = 1; i <= Math.min(words.length - 1, 4); i++) {
+    const candidate = words.slice(0, i).join(' ')
+    const found = findProject(candidate)
+    if (found) {
+      project = found
+      splitAt = i
+      break
+    }
+  }
+
+  if (!project) {
+    // Last resort: try first word only and show error
+    const firstWord = words[0]
     await ctx.reply(
-      '❌ 請提供提示內容。\n用法: `/run <專案> <提示>`',
-      { parse_mode: 'Markdown' }
+      `❌ 找不到專案 "${firstWord}"。\n用 /projects 查看可用專案。\n\n支援模糊匹配：輸入部分名稱即可。`,
     )
     return
   }
 
-  const projectName = rest.slice(0, spaceIdx).trim()
-  const prompt = rest.slice(spaceIdx + 1).trim()
+  const prompt = words.slice(splitAt).join(' ').trim()
 
   if (!prompt) {
     await ctx.reply(
       '❌ 請提供提示內容。\n用法: `/run <專案> <提示>`',
       { parse_mode: 'Markdown' }
     )
-    return
-  }
-
-  const project = findProject(projectName)
-  if (!project) {
-    await ctx.reply(`❌ 找不到專案 "${projectName}"。用 /projects 查看可用專案。`)
     return
   }
 

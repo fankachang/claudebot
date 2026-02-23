@@ -30,3 +30,7 @@ export function parseCrossProjectTasks(text: string): readonly CrossProjectTask[
 
   return tasks
 }
+
+export function stripRunDirectives(text: string): string {
+  return text.replace(/^@run\([^)]+\)\s+.+$/gm, '').replace(/\n{3,}/g, '\n\n').trim()
+}
