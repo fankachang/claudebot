@@ -11,9 +11,10 @@ import { detectImagePaths } from '../utils/image-detector.js'
 import { parseCrossProjectTasks, stripRunDirectives } from '../utils/cross-project-parser.js'
 import { getRandomTidbit } from '../utils/idle-tidbits.js'
 import { getAISessionId } from '../ai/session-store.js'
-import { detectQuestion } from '../utils/question-detector.js'
+import { detectChoices } from '../utils/choice-detector.js'
 import { generateSuggestions } from '../utils/suggestion-generator.js'
 import { setSuggestions } from './suggestion-store.js'
+import { setChoices } from './choice-store.js'
 import { formatAILabel } from '../ai/types.js'
 import type { AIModelSelection } from '../ai/types.js'
 import { autoRoute } from '../ai/router.js'
@@ -176,8 +177,8 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
               { parse_mode: 'Markdown' }
             ).catch(() => {})
 
-            // Detect and send any image files mentioned in the response
-            const rawText = result.resultText || accumulated || ''
+            // Prefer full accumulated stream text; resultText is only the final fragment
+            const rawText = accumulated || result.resultText || ''
             const responseText = stripRunDirectives(rawText)
             const detectedImages = detectImagePaths(responseText)
             const validImages = detectedImages.filter((p) => existsSync(p))
@@ -203,16 +204,27 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
                 return
               }
 
-              // Layer 1: detect question → confirm buttons on last chunk
-              const isQuestion = detectQuestion(responseText)
-              const confirmButtons = isQuestion
-                ? Markup.inlineKeyboard([
-                    [
-                      Markup.button.callback('✅ 是 Yes', 'confirm:yes'),
-                      Markup.button.callback('❌ 否 No', 'confirm:no'),
-                    ],
+              // Layer 1: detect choices → appropriate buttons on last chunk
+              const choiceResult = detectChoices(responseText)
+              let replyButtons: ReturnType<typeof Markup.inlineKeyboard> | undefined
+
+              if (choiceResult.type === 'yesno') {
+                replyButtons = Markup.inlineKeyboard([
+                  choiceResult.choices.map((c, i) =>
+                    Markup.button.callback(c.label, `confirm:${i === 0 ? 'yes' : 'no'}`)
+                  ),
+                ])
+              } else if (choiceResult.type === 'options') {
+                // Store choices for callback lookup
+                const choiceValues = choiceResult.choices.map((c) => c.value)
+                setChoices(item.chatId, item.project.path, choiceValues)
+                replyButtons = Markup.inlineKeyboard(
+                  choiceResult.choices.map((c, i) => [
+                    Markup.button.callback(c.label, `choice:${i}`),
                   ])
-                : undefined
+                )
+              }
+              // type === 'open' or 'none' → no buttons
 
               const chunks = splitText(responseText, 4096)
               let chain = Promise.resolve()
@@ -223,7 +235,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
                   telegram.sendMessage(
                     item.chatId,
                     chunk,
-                    isLast && confirmButtons ? { ...confirmButtons } : undefined,
+                    isLast && replyButtons ? { ...replyButtons } : undefined,
                   ).then(() => {})
                 )
               }
@@ -231,7 +243,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
               await chain
 
               // Layer 3: generate smart follow-up suggestions (async, non-blocking)
-              if (!isQuestion) {
+              if (choiceResult.type === 'none') {
                 generateSuggestions(responseText, item.project.name)
                   .then(async (suggestions) => {
                     if (suggestions.length === 0) return
