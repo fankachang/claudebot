@@ -19,7 +19,12 @@ export async function photoHandler(ctx: BotContext): Promise<void> {
   if (!chatId) return
 
   const state = getUserState(chatId)
-  const project = state.selectedProject ?? { name: 'general', path: process.cwd() }
+  if (!state.selectedProject) {
+    await ctx.reply('\u{7528} /projects \u{9078}\u{64C7}\u{5C08}\u{6848}\u{FF0C}\u{6216} /chat \u{9032}\u{5165}\u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\u{3002}')
+    return
+  }
+
+  const project = state.selectedProject
 
   const message = ctx.message
   if (!message || !('photo' in message) || !message.photo) return
@@ -69,8 +74,12 @@ export async function documentHandler(ctx: BotContext): Promise<void> {
   }
 
   const state = getUserState(chatId)
-  const project = state.selectedProject ?? { name: 'general', path: process.cwd() }
+  if (!state.selectedProject) {
+    await ctx.reply('\u{7528} /projects \u{9078}\u{64C7}\u{5C08}\u{6848}\u{FF0C}\u{6216} /chat \u{9032}\u{5165}\u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\u{3002}')
+    return
+  }
 
+  const project = state.selectedProject
   const caption = ('caption' in message ? message.caption : '') || ''
   const prompt = caption || DEFAULT_PROMPT
   const sessionId = getSessionId(project.path)

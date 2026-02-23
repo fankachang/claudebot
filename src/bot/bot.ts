@@ -23,6 +23,7 @@ import { cdCommand } from './commands/cd.js'
 import { screenshotCommand } from './commands/screenshot.js'
 import { promptCommand } from './commands/prompt.js'
 import { runCommand } from './commands/run.js'
+import { chatCommand } from './commands/chat.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
@@ -57,6 +58,7 @@ export function createBot(): Telegraf<BotContext> {
   bot.command('screenshot', screenshotCommand)
   bot.command('prompt', promptCommand)
   bot.command('run', runCommand)
+  bot.command('chat', chatCommand)
 
   // Bookmark shortcuts /1 through /9
   for (let i = 1; i <= 9; i++) {
@@ -91,6 +93,7 @@ export function createBot(): Telegraf<BotContext> {
     { command: 'todo', description: '\u{65B0}\u{589E}\u{5F85}\u{8FA6}' },
     { command: 'todos', description: '\u{67E5}\u{770B}\u{5F85}\u{8FA6}' },
     { command: 'run', description: '\u{8DE8}\u{5C08}\u{6848}\u{57F7}\u{884C}' },
+    { command: 'chat', description: '\u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}' },
     { command: 'screenshot', description: '\u{622A}\u{53D6}\u{756B}\u{9762} (1-9/list/URL)' },
     { command: 'help', description: '\u{986F}\u{793A}\u{8AAA}\u{660E}' },
   ]).catch(() => {})
