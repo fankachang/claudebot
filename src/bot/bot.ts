@@ -25,6 +25,7 @@ import { runCommand } from './commands/run.js'
 import { chatCommand } from './commands/chat.js'
 import { restartCommand, handleRestartCallback } from './commands/restart.js'
 import { newbotCommand } from './commands/newbot.js'
+import { reloadCommand } from './commands/reload.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
@@ -32,9 +33,49 @@ import { voiceHandler } from './handlers/voice-handler.js'
 import { warmupSherpa } from '../asr/sherpa-client.js'
 import { setupQueueProcessor } from './queue-processor.js'
 import { setBotInstance } from './bio-updater.js'
-import { loadPlugins, getLoadedPlugins } from '../plugins/loader.js'
+import {
+  loadPlugins,
+  getPluginModule,
+  discoverAllPluginCommandNames,
+  dispatchPluginCommand,
+  dispatchPluginMessage,
+  dispatchPluginCallback,
+} from '../plugins/loader.js'
 import { startHeartbeat } from '../dashboard/heartbeat-writer.js'
 import { startCommandReader } from '../dashboard/command-reader.js'
+
+let botInstance: Telegraf<BotContext> | null = null
+
+export function getBotInstance(): Telegraf<BotContext> | null {
+  return botInstance
+}
+
+export const CORE_COMMANDS = [
+  { command: 'projects', description: '瀏覽與選擇專案' },
+  { command: 'select', description: '快速切換專案' },
+  { command: 'model', description: '切換模型' },
+  { command: 'status', description: '查看運行狀態' },
+  { command: 'cancel', description: '停止目前程序' },
+  { command: 'new', description: '新對話' },
+  { command: 'fav', description: '管理書籤' },
+  { command: 'todo', description: '新增待辦' },
+  { command: 'todos', description: '查看待辦' },
+  { command: 'run', description: '跨專案執行' },
+  { command: 'chat', description: '通用對話模式' },
+  { command: 'newbot', description: '建立新 bot 實例' },
+  { command: 'reload', description: '熱重載插件' },
+  { command: 'help', description: '顯示說明' },
+] as const
+
+export function wireReminderSendFn(bot: Telegraf<BotContext>): void {
+  const mod = getPluginModule('reminder')
+  if (!mod || typeof mod.setReminderSendFn !== 'function') return
+  ;(mod.setReminderSendFn as (fn: (chatId: number, text: string, extra?: Record<string, unknown>) => Promise<void>) => void)(
+    async (chatId, text, extra) => {
+      await bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra })
+    }
+  )
+}
 
 export async function createBot(): Promise<Telegraf<BotContext>> {
   const bot = new Telegraf<BotContext>(env.BOT_TOKEN)
@@ -66,43 +107,41 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   bot.command('chat', chatCommand)
   bot.command('restart', restartCommand)
   bot.command('newbot', newbotCommand)
+  bot.command('reload', reloadCommand)
 
   // Bookmark shortcuts /1 through /9
   for (let i = 1; i <= 9; i++) {
     bot.command(String(i), shortcutCommand)
   }
 
-  // Load and register plugins
+  // Load plugins and register dispatchers
   const plugins = await loadPlugins(env.PLUGINS)
-  for (const plugin of plugins) {
-    for (const cmd of plugin.commands) {
-      bot.command(cmd.name, cmd.handler)
-    }
+
+  // Collect all command names: active + discovered (for pre-registration)
+  const activeCommandNames = new Set(
+    plugins.flatMap((p) => p.commands.map((cmd) => cmd.name))
+  )
+  const discoveredNames = await discoverAllPluginCommandNames()
+  const allNames = new Set([...activeCommandNames, ...discoveredNames])
+
+  // Pre-register dispatchers for ALL discoverable plugin commands
+  // Active ones dispatch to real handlers; inactive ones reply "not enabled"
+  // This ensures newly enabled plugins work after /reload without restart
+  for (const name of allNames) {
+    bot.command(name, (ctx) => dispatchPluginCommand(name, ctx))
   }
 
-  // Wire plugin-specific integrations
-  const reminderPlugin = plugins.find((p) => p.name === 'reminder')
-  if (reminderPlugin) {
-    const { setReminderSendFn } = await import('../plugins/reminder/index.js')
-    setReminderSendFn(async (chatId, text, extra) => {
-      await bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra })
-    })
-  }
+  // Wire plugin-specific integrations (uses same module instance from loader)
+  wireReminderSendFn(bot)
 
-  // Plugin message interceptors (before default handler)
-  const pluginsWithMessage = plugins.filter((p) => p.onMessage)
-  if (pluginsWithMessage.length > 0) {
-    bot.on('text', async (ctx, next) => {
-      for (const plugin of pluginsWithMessage) {
-        const handled = await plugin.onMessage!(ctx)
-        if (handled) return
-      }
-      return next()
-    })
-  }
+  // Plugin message interceptor — always registered (dispatcher checks dynamically)
+  bot.on('text', async (ctx, next) => {
+    const handled = await dispatchPluginMessage(ctx)
+    if (handled) return
+    return next()
+  })
 
-  // Callback queries: plugins first, then core handler
-  const pluginsWithCallback = plugins.filter((p) => p.onCallback)
+  // Callback queries: restart → plugins → core handler
   bot.on('callback_query', async (ctx, next) => {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return next()
     const data = ctx.callbackQuery.data
@@ -112,10 +151,9 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     const restartHandled = await handleRestartCallback(ctx, data)
     if (restartHandled) return
 
-    for (const plugin of pluginsWithCallback) {
-      const handled = await plugin.onCallback!(ctx, data)
-      if (handled) return
-    }
+    const pluginHandled = await dispatchPluginCallback(ctx, data)
+    if (pluginHandled) return
+
     return callbackHandler(ctx)
   })
 
@@ -130,8 +168,9 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   // Set up the queue processor
   setupQueueProcessor(bot)
 
-  // Store bot instance for bio updates
+  // Store bot instance for bio updates + reload
   setBotInstance(bot)
+  botInstance = bot
 
   // Start dashboard heartbeat writer + command reader
   startHeartbeat()
@@ -143,27 +182,11 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   }
 
   // Register commands with Telegram for autocomplete (core + plugins)
-  const coreCommands = [
-    { command: 'projects', description: '瀏覽與選擇專案' },
-    { command: 'select', description: '快速切換專案' },
-    { command: 'model', description: '切換模型' },
-    { command: 'status', description: '查看運行狀態' },
-    { command: 'cancel', description: '停止目前程序' },
-    { command: 'new', description: '新對話' },
-    { command: 'fav', description: '管理書籤' },
-    { command: 'todo', description: '新增待辦' },
-    { command: 'todos', description: '查看待辦' },
-    { command: 'run', description: '跨專案執行' },
-    { command: 'chat', description: '通用對話模式' },
-    { command: 'newbot', description: '建立新 bot 實例' },
-    { command: 'help', description: '顯示說明' },
-  ]
-
   const pluginCommands = plugins.flatMap((p) =>
     p.commands.map((cmd) => ({ command: cmd.name, description: cmd.description }))
   )
 
-  bot.telegram.setMyCommands([...coreCommands, ...pluginCommands]).catch(() => {})
+  bot.telegram.setMyCommands([...CORE_COMMANDS, ...pluginCommands]).catch(() => {})
 
   return bot
 }
