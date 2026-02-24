@@ -10,7 +10,7 @@ import { enqueue } from '../../claude/queue.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { Markup } from 'telegraf'
 import type { AIModelSelection } from '../../types/index.js'
-import { formatAILabel } from '../../ai/types.js'
+import { formatAILabel, resolveBackend } from '../../ai/types.js'
 
 export async function callbackHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -137,8 +137,7 @@ async function handleConfirm(ctx: BotContext, chatId: number, data: string): Pro
     return
   }
 
-  const resolvedBackend = state.ai.backend === 'auto' ? 'claude' : state.ai.backend
-  const sessionId = getAISessionId(resolvedBackend, state.selectedProject.path)
+  const sessionId = getAISessionId(resolveBackend(state.ai.backend), state.selectedProject.path)
 
   enqueue({
     chatId,
@@ -172,8 +171,7 @@ async function handleChoice(ctx: BotContext, chatId: number, data: string): Prom
   await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {})
   await ctx.answerCbQuery()
 
-  const resolvedBackend = state.ai.backend === 'auto' ? 'claude' : state.ai.backend
-  const sessionId = getAISessionId(resolvedBackend, state.selectedProject.path)
+  const sessionId = getAISessionId(resolveBackend(state.ai.backend), state.selectedProject.path)
   clearChoices(chatId, state.selectedProject.path)
 
   enqueue({
@@ -208,8 +206,7 @@ async function handleSuggestion(ctx: BotContext, chatId: number, data: string): 
   await ctx.editMessageText(`💡 → ${suggestion}`).catch(() => {})
   await ctx.answerCbQuery()
 
-  const resolvedBackend = state.ai.backend === 'auto' ? 'claude' : state.ai.backend
-  const sessionId = getAISessionId(resolvedBackend, state.selectedProject.path)
+  const sessionId = getAISessionId(resolveBackend(state.ai.backend), state.selectedProject.path)
   clearSuggestions(chatId, state.selectedProject.path)
 
   enqueue({

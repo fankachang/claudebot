@@ -1,6 +1,6 @@
 import type { BotContext } from '../../types/context.js'
-import type { AIBackend } from '../../types/index.js'
 import { getUserState } from '../state.js'
+import { resolveBackend } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue, isProcessing, getQueueLength } from '../../claude/queue.js'
 import { cancelAnyRunning } from '../../ai/registry.js'
@@ -30,10 +30,6 @@ function extractMentionText(ctx: BotContext, rawText: string): string | null {
   const before = rawText.substring(0, mentionEntity.offset)
   const after = rawText.substring(mentionEntity.offset + mentionEntity.length)
   return (before + after).trim()
-}
-
-function resolveBackend(backend: AIBackend): AIBackend {
-  return backend === 'auto' ? 'claude' : backend
 }
 
 export async function messageHandler(ctx: BotContext): Promise<void> {
@@ -133,10 +129,6 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
   }
 }
 
-function resolveBackendForFlush(backend: AIBackend): AIBackend {
-  return backend === 'auto' ? 'claude' : backend
-}
-
 function flushMessages(chatId: number, threadId?: number): void {
   const pending = pendingMessages.get(chatId)
   if (!pending) return
@@ -146,7 +138,7 @@ function flushMessages(chatId: number, threadId?: number): void {
   if (!state.selectedProject) return
 
   const project = state.selectedProject
-  const sessionId = getAISessionId(resolveBackendForFlush(state.ai.backend), project.path)
+  const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
   const combined = pending.texts.join('\n\n')
 
   enqueue({

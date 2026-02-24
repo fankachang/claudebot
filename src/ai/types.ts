@@ -35,6 +35,10 @@ export interface AIRunner {
   getElapsedMs(projectPath: string): number
 }
 
+export function resolveBackend(backend: AIBackend): AIBackend {
+  return backend === 'auto' ? 'claude' : backend
+}
+
 export function formatAILabel(selection: AIModelSelection): string {
   if (selection.backend === 'auto') return 'auto'
   return `${selection.backend}/${selection.model}`

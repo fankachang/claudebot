@@ -10,8 +10,8 @@ import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import type { BotContext } from '../../types/context.js'
-import type { AIBackend } from '../../types/index.js'
 import { getUserState } from '../state.js'
+import { resolveBackend } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue } from '../../claude/queue.js'
 import { transcribeAudio } from '../../asr/sherpa-client.js'
@@ -22,10 +22,6 @@ const TEMP_DIR = join(tmpdir(), 'claudebot-voice')
 
 async function ensureTempDir(): Promise<void> {
   await mkdir(TEMP_DIR, { recursive: true })
-}
-
-function resolveBackend(backend: AIBackend): AIBackend {
-  return backend === 'auto' ? 'claude' : backend
 }
 
 async function cleanupFiles(...paths: string[]): Promise<void> {

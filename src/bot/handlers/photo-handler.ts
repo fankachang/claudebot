@@ -1,6 +1,6 @@
 import type { BotContext } from '../../types/context.js'
-import type { AIBackend } from '../../types/index.js'
 import { getUserState } from '../state.js'
+import { resolveBackend } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue } from '../../claude/queue.js'
 import { downloadImage } from '../../utils/image-downloader.js'
@@ -14,10 +14,6 @@ const IMAGE_MIME_TYPES = new Set([
 ])
 
 const DEFAULT_PROMPT = '請分析這張圖片'
-
-function resolveBackend(backend: AIBackend): AIBackend {
-  return backend === 'auto' ? 'claude' : backend
-}
 
 export async function photoHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
