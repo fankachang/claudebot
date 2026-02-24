@@ -4,6 +4,7 @@ import { resolveBackend } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue, isProcessing, getQueueLength } from '../../claude/queue.js'
 import { cancelAnyRunning } from '../../ai/registry.js'
+import { transcribeVoiceFile } from './voice-handler.js'
 
 const COLLECT_MS = 1000
 const pendingMessages = new Map<number, { texts: string[]; replyQuote: string; timer: ReturnType<typeof setTimeout> }>()
@@ -32,18 +33,30 @@ function extractMentionText(ctx: BotContext, rawText: string): string | null {
   return (before + after).trim()
 }
 
-function extractReplyQuote(ctx: BotContext): string {
+async function extractReplyQuote(ctx: BotContext): Promise<string> {
   const reply = ctx.message && 'reply_to_message' in ctx.message
     ? ctx.message.reply_to_message
     : undefined
   if (!reply) return ''
 
+  // Text or caption
   const replyText = reply && 'text' in reply ? reply.text : ''
   const caption = reply && 'caption' in reply ? reply.caption : ''
-  const content = replyText || caption || ''
-  if (!content) return ''
+  const textContent = replyText || caption || ''
 
-  return `> [引用訊息]\n> ${content.split('\n').join('\n> ')}\n\n`
+  if (textContent) {
+    return `> [引用訊息]\n> ${textContent.split('\n').join('\n> ')}\n\n`
+  }
+
+  // Voice message — transcribe it
+  if ('voice' in reply && reply.voice) {
+    const transcribed = await transcribeVoiceFile(reply.voice.file_id, ctx.telegram)
+    if (transcribed) {
+      return `> [引用語音]\n> ${transcribed.split('\n').join('\n> ')}\n\n`
+    }
+  }
+
+  return ''
 }
 
 export async function messageHandler(ctx: BotContext): Promise<void> {
@@ -57,8 +70,8 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
   const text = extractMentionText(ctx, rawText)
   if (text === null || !text) return
 
-  // Prepend quoted reply content if user replied to a message
-  const replyQuote = extractReplyQuote(ctx)
+  // Prepend quoted reply content if user replied to a message (supports voice transcription)
+  const replyQuote = await extractReplyQuote(ctx)
 
   // Unmatched commands: show hint instead of silently dropping
   if (text.startsWith('/')) {
