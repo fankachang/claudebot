@@ -23,9 +23,12 @@ console.log(`Launching ${filesToLaunch.length} bot(s): ${filesToLaunch.join(', '
 const tsxBin = path.join(root, 'node_modules', '.bin', 'tsx')
 const indexPath = path.join(root, 'src', 'index.ts')
 
-const children: ChildProcess[] = []
+const children = new Map<string, ChildProcess>()
+let shuttingDown = false
 
-for (const envFile of filesToLaunch) {
+const RESPAWN_DELAY_MS = 2000
+
+function spawnBot(envFile: string): void {
   const label =
     envFile === '.env' ? 'main' : envFile.replace('.env.', '')
 
@@ -49,17 +52,31 @@ for (const envFile of filesToLaunch) {
 
   child.on('close', (code) => {
     console.log(`[${label}] exited (code ${code})`)
-    // Remove from children array
-    const idx = children.indexOf(child)
-    if (idx !== -1) children.splice(idx, 1)
-    // If all children exited, exit launcher
-    if (children.length === 0) {
-      console.log('All bots stopped.')
-      process.exit(0)
+    children.delete(envFile)
+
+    if (shuttingDown) {
+      // Launcher is shutting down — don't respawn
+      if (children.size === 0) {
+        console.log('All bots stopped.')
+        process.exit(0)
+      }
+      return
     }
+
+    // Auto-respawn this bot only
+    console.log(`[${label}] respawning in ${RESPAWN_DELAY_MS}ms...`)
+    setTimeout(() => {
+      if (!shuttingDown) {
+        spawnBot(envFile)
+      }
+    }, RESPAWN_DELAY_MS)
   })
 
-  children.push(child)
+  children.set(envFile, child)
+}
+
+for (const envFile of filesToLaunch) {
+  spawnBot(envFile)
 }
 
 // Dashboard server now runs in-process inside the main bot (see index.ts).
@@ -68,8 +85,10 @@ for (const envFile of filesToLaunch) {
 
 // Graceful shutdown: forward signal to all children
 const shutdown = (signal: string) => {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log(`\n${signal} — stopping all bots...`)
-  for (const child of children) {
+  for (const [, child] of children) {
     child.kill('SIGTERM')
   }
   // Force exit after 5s if children don't stop
