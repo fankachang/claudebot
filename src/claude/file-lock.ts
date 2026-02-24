@@ -34,8 +34,20 @@ async function readLock(projectPath: string): Promise<LockInfo | null> {
   }
 }
 
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function isStale(info: LockInfo): boolean {
-  return Date.now() - info.startedAt > STALE_TIMEOUT_MS
+  if (Date.now() - info.startedAt > STALE_TIMEOUT_MS) return true
+  // If the holding process is dead, the lock is stale
+  if (!isPidAlive(info.pid)) return true
+  return false
 }
 
 export async function acquireLock(projectPath: string): Promise<boolean> {
