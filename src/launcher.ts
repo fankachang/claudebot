@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const root = process.cwd()
@@ -60,6 +60,39 @@ for (const envFile of filesToLaunch) {
   })
 
   children.push(child)
+}
+
+// Optionally spawn dashboard server when DASHBOARD=true in main .env
+const mainEnvContent = (() => {
+  try { return readFileSync(path.join(root, '.env'), 'utf-8') } catch { return '' }
+})()
+const dashboardEnabled = /^DASHBOARD\s*=\s*true$/m.test(mainEnvContent)
+
+if (dashboardEnabled) {
+  const dashboardPath = path.join(root, 'src', 'dashboard', 'start.ts')
+  const dashChild = spawn(tsxBin, [dashboardPath], {
+    cwd: root,
+    shell: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  dashChild.stdout?.on('data', (chunk: Buffer) => {
+    for (const line of chunk.toString().split('\n')) {
+      if (line.trim()) console.log(`[dashboard] ${line}`)
+    }
+  })
+
+  dashChild.stderr?.on('data', (chunk: Buffer) => {
+    for (const line of chunk.toString().split('\n')) {
+      if (line.trim()) console.error(`[dashboard] ${line}`)
+    }
+  })
+
+  dashChild.on('close', (code) => {
+    console.log(`[dashboard] exited (code ${code})`)
+  })
+
+  children.push(dashChild)
 }
 
 // Graceful shutdown: forward signal to all children

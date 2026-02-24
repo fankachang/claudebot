@@ -9,6 +9,8 @@
     "dev:single": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "dashboard": "tsx src/dashboard/start.ts",
+    "setup": "tsx src/setup.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -18,11 +20,13 @@
     "dotenv": "^16.4.0",
     "playwright": "^1.58.2",
     "telegraf": "^4.16.3",
+    "ws": "^8.19.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

@@ -8,3 +8,5 @@ nul
 .sessions.json
 data/
 .claudebot.lock
+src/dashboard/web/node_modules/
+src/dashboard/web/dist/

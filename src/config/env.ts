@@ -37,6 +37,12 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((val) => val === 'true'),
+  DASHBOARD: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
+  DASHBOARD_PORT: z.coerce.number().int().positive().default(3100),
+  ANTHROPIC_ADMIN_KEY: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>

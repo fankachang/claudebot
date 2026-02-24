@@ -24,12 +24,15 @@ import { promptCommand } from './commands/prompt.js'
 import { runCommand } from './commands/run.js'
 import { chatCommand } from './commands/chat.js'
 import { restartCommand, handleRestartCallback } from './commands/restart.js'
+import { newbotCommand } from './commands/newbot.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
 import { setupQueueProcessor } from './queue-processor.js'
 import { setBotInstance } from './bio-updater.js'
 import { loadPlugins, getLoadedPlugins } from '../plugins/loader.js'
+import { startHeartbeat } from '../dashboard/heartbeat-writer.js'
+import { startCommandReader } from '../dashboard/command-reader.js'
 
 export async function createBot(): Promise<Telegraf<BotContext>> {
   const bot = new Telegraf<BotContext>(env.BOT_TOKEN)
@@ -60,6 +63,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   bot.command('run', runCommand)
   bot.command('chat', chatCommand)
   bot.command('restart', restartCommand)
+  bot.command('newbot', newbotCommand)
 
   // Bookmark shortcuts /1 through /9
   for (let i = 1; i <= 9; i++) {
@@ -126,6 +130,10 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   // Store bot instance for bio updates
   setBotInstance(bot)
 
+  // Start dashboard heartbeat writer + command reader
+  startHeartbeat()
+  startCommandReader()
+
   // Register commands with Telegram for autocomplete (core + plugins)
   const coreCommands = [
     { command: 'projects', description: '瀏覽與選擇專案' },
@@ -139,6 +147,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     { command: 'todos', description: '查看待辦' },
     { command: 'run', description: '跨專案執行' },
     { command: 'chat', description: '通用對話模式' },
+    { command: 'newbot', description: '建立新 bot 實例' },
     { command: 'help', description: '顯示說明' },
   ]
 

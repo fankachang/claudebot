@@ -18,6 +18,8 @@ import { setChoices } from './choice-store.js'
 import { formatAILabel } from '../ai/types.js'
 import type { AIModelSelection } from '../ai/types.js'
 import { autoRoute } from '../ai/router.js'
+import { setActiveRunner, updateRunnerTool, removeActiveRunner } from '../dashboard/runner-tracker.js'
+import { recordCost } from '../plugins/cost/index.js'
 
 const TIMEOUT_MS = 30 * 60 * 1000
 
@@ -74,6 +76,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
       const done = () => {
         if (resolved) return
         resolved = true
+        removeActiveRunner(item.project.path)
         clearInterval(typingInterval)
         clearInterval(tickInterval)
         clearTimeout(longRunTimer)
@@ -144,6 +147,18 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         }
       }, TIDBIT_DELAY_MS)
 
+      // Track active runner for dashboard heartbeat
+      const projectName = item.project.name
+      setActiveRunner(item.project.path, {
+        projectPath: item.project.path,
+        projectName,
+        backend: String(backend),
+        model: resolvedAI.model,
+        elapsedMs: 0,
+        toolCount: 0,
+        lastTool: null,
+      })
+
       const runner = getRunner(backend)
       runner.run({
         prompt: item.prompt,
@@ -158,12 +173,23 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         onToolUse: (toolName) => {
           toolCount++
           toolNames.push(toolName)
+          updateRunnerTool(item.project.path, toolName)
           updateStatus()
         },
         onResult: (result) => {
           if (resolved) return
           clearTimeout(timer)
           try {
+            recordCost({
+              timestamp: Date.now(),
+              costUsd: result.costUsd ?? 0,
+              backend: result.backend,
+              model: result.model,
+              project: item.project.name,
+              durationMs: result.durationMs,
+              toolCount,
+            })
+
             const cost = (result.costUsd ?? 0).toFixed(4)
             const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
             const toolSummary = toolCount > 0
