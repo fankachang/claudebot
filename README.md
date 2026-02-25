@@ -118,6 +118,7 @@ npm run dev
 | `RATE_LIMIT_WINDOW_MS` | No | `60000` | Rate limit window (ms) |
 | `MAX_TURNS` | No | — | Max Claude conversation turns |
 | `ANTHROPIC_ADMIN_KEY` | No | — | Admin API key for `/usage` org-level billing |
+| `PLUGIN_REGISTRY_URL` | No | GitHub raw | Plugin Store registry URL |
 
 \* Password is optional when `AUTO_AUTH=true`. When `AUTO_AUTH=false`, one of `LOGIN_PASSWORD` or `LOGIN_PASSWORD_HASH` is required.
 
@@ -176,6 +177,22 @@ Claude can also delegate autonomously — when its response contains `@run(proje
 
 Plugins run without AI — instant, zero cost.
 
+### Plugin Store
+
+Browse, install, and uninstall plugins directly from Telegram:
+
+```
+/store              → Browse available plugins
+/store dice         → View plugin details
+/install dice       → Download & enable a plugin
+/uninstall dice     → Remove a plugin
+/reload             → Hot-reload after manual changes
+```
+
+Plugins are hosted in [claudebot-plugins](https://github.com/Jeffrey0117/claudebot-plugins). Community contributions welcome — submit a PR to add your plugin.
+
+### Built-in Plugins
+
 ```env
 PLUGINS=screenshot,sysinfo,dice,reminder,browse,cost
 ```
@@ -188,6 +205,10 @@ PLUGINS=screenshot,sysinfo,dice,reminder,browse,cost
 | `reminder` | `/remind` | Gym timer with preset buttons |
 | `browse` | `/browse` | Web page browsing |
 | `cost` | `/cost`, `/usage` | Session cost tracking & Anthropic billing |
+| `search` | `/search` | Web search (DuckDuckGo) |
+| `github` | `/star` | Star GitHub repos |
+| `scheduler` | `/schedule` | Scheduled tasks |
+| `mcp` | `/mcp` | MCP tool bridge |
 
 <details>
 <summary><strong>Creating your own plugin</strong></summary>
@@ -214,7 +235,7 @@ const myPlugin: Plugin = {
 export default myPlugin
 ```
 
-Add the folder name to `PLUGINS` in `.env`. The bot auto-registers commands and updates `/help`.
+Add the folder name to `PLUGINS` in `.env`, or use `/install` to download from the [Plugin Store](https://github.com/Jeffrey0117/claudebot-plugins).
 
 </details>
 

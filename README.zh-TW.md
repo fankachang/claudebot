@@ -174,6 +174,22 @@ Claude 也能自主委派 — 當回應中包含 `@run(projectName) description`
 
 插件不經過 AI — 即時執行，零成本。
 
+### Plugin Store
+
+直接在 Telegram 裡瀏覽、安裝、卸載插件：
+
+```
+/store              → 瀏覽可用插件
+/store dice         → 查看插件詳情
+/install dice       → 下載並啟用插件
+/uninstall dice     → 卸載插件
+/reload             → 手動修改後熱重載
+```
+
+插件託管在 [claudebot-plugins](https://github.com/Jeffrey0117/claudebot-plugins)，歡迎社群投稿 — 提交 PR 即可上架。
+
+### 內建插件
+
 ```env
 PLUGINS=screenshot,sysinfo,dice,reminder,browse,cost
 ```
@@ -186,6 +202,10 @@ PLUGINS=screenshot,sysinfo,dice,reminder,browse,cost
 | `reminder` | `/remind` | 健身計時器（預設按鈕） |
 | `browse` | `/browse` | 網頁瀏覽 |
 | `cost` | `/cost`、`/usage` | Session 花費追蹤 & Anthropic 帳單 |
+| `search` | `/search` | 網頁搜尋（DuckDuckGo） |
+| `github` | `/star` | 快速 Star GitHub Repo |
+| `scheduler` | `/schedule` | 定時任務排程 |
+| `mcp` | `/mcp` | MCP 工具橋接 |
 
 <details>
 <summary><strong>建立自己的插件</strong></summary>
@@ -212,7 +232,7 @@ const myPlugin: Plugin = {
 export default myPlugin
 ```
 
-將資料夾名稱加入 `.env` 的 `PLUGINS` 即可啟用。Bot 會自動註冊指令並更新 `/help`。
+將資料夾名稱加入 `.env` 的 `PLUGINS`，或用 `/install` 從 [Plugin Store](https://github.com/Jeffrey0117/claudebot-plugins) 下載。
 
 </details>
 
