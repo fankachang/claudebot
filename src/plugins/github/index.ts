@@ -5,6 +5,7 @@ import { env } from '../../config/env.js'
 
 const CALLBACK_PREFIX = 'ghstar:'
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/
+const GITHUB_URL_RE = /^https?:\/\/github\.com\/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?/
 
 function isValidOwnerRepo(owner: string, repo: string): boolean {
   return VALID_NAME.test(owner) && VALID_NAME.test(repo)
@@ -59,12 +60,30 @@ async function starCommand(ctx: BotContext): Promise<void> {
   const input = raw.replace(/^\/star(@\S+)?\s*/, '').trim()
 
   if (!input) {
-    await ctx.reply('Usage: `/star owner/repo` or `/star keyword`', { parse_mode: 'Markdown' })
+    await ctx.reply('Usage:\n`/star owner/repo`\n`/star https://github.com/owner/repo`\n`/star keyword`', { parse_mode: 'Markdown' })
     return
   }
 
   if (!env.GITHUB_TOKEN) {
     await ctx.reply('❌ GitHub token not configured\nSet `GITHUB_TOKEN` in `.env` with `public_repo` scope.', { parse_mode: 'Markdown' })
+    return
+  }
+
+  // GitHub URL → extract owner/repo
+  const urlMatch = input.match(GITHUB_URL_RE)
+  if (urlMatch) {
+    const [, owner, repo] = urlMatch
+    try {
+      const result = await starRepo(owner, repo)
+      if (!result.success) {
+        await ctx.reply(`❌ Failed to star \`${owner}/${repo}\` — repo not found or token lacks permission.`, { parse_mode: 'Markdown' })
+        return
+      }
+      const desc = result.description ? `\n_${result.description}_` : ''
+      await ctx.reply(`⭐ Starred **${owner}/${repo}** (★ ${formatStars(result.stars)})${desc}`, { parse_mode: 'Markdown' })
+    } catch (err) {
+      await ctx.reply(`❌ Network error: ${err instanceof Error ? err.message : 'unknown'}`)
+    }
     return
   }
 

@@ -45,6 +45,13 @@ const envSchema = z.object({
   ANTHROPIC_ADMIN_KEY: z.string().default(''),
   GITHUB_TOKEN: z.string().default(''),
   SHERPA_SERVER_PATH: z.string().default(''),
+  MCP_BROWSER: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
+  PLUGIN_REGISTRY_URL: z
+    .string()
+    .default('https://raw.githubusercontent.com/Jeffrey0117/claudebot-plugins/main/registry.json'),
 })
 
 export type Env = z.infer<typeof envSchema>

@@ -1,7 +1,8 @@
 import type { BotContext } from '../../types/context.js'
-import { addTodo, getTodos, toggleTodo, clearDone } from '../todo-store.js'
+import { addTodo, getTodos, toggleTodo, clearDone, getAllTodos } from '../todo-store.js'
 import { getUserState } from '../state.js'
 import { findProject } from '../../config/projects.js'
+import { basename } from 'node:path'
 
 export async function todoCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -55,7 +56,30 @@ export async function todosCommand(ctx: BotContext): Promise<void> {
   let projectPath: string | null = null
   let projectName: string
 
-  if (arg.startsWith('@')) {
+  if (arg === 'all') {
+    const allTodos = getAllTodos()
+    if (allTodos.length === 0) {
+      await ctx.reply('所有專案都沒有待辦。')
+      return
+    }
+
+    const sections: string[] = []
+    for (const pt of allTodos) {
+      const name = basename(pt.projectPath)
+      const pending = pt.items.filter((t) => !t.done)
+      if (pending.length === 0) continue
+      const lines = pending.map((t) => `  ☐ ${t.text}`)
+      sections.push(`*${name}* (${pending.length})\n${lines.join('\n')}`)
+    }
+
+    if (sections.length === 0) {
+      await ctx.reply('所有待辦都已完成！')
+      return
+    }
+
+    await ctx.reply(`📋 *全部待辦*\n\n${sections.join('\n\n')}`, { parse_mode: 'Markdown' })
+    return
+  } else if (arg.startsWith('@')) {
     const name = arg.slice(1)
     const project = findProject(name)
     if (!project) {

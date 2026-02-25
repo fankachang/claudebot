@@ -36,12 +36,14 @@ export async function pinProjectStatus(
   if (!botInstance) return
 
   try {
-    // Unpin and delete previous pin message
+    // Delete previous pin message if we still have the ID
     const prevMsgId = pinnedMessages.get(chatId)
     if (prevMsgId) {
-      await botInstance.telegram.unpinChatMessage(chatId, prevMsgId).catch(() => {})
       await botInstance.telegram.deleteMessage(chatId, prevMsgId).catch(() => {})
     }
+
+    // Unpin ALL messages first to clear stale pins from previous bot sessions
+    await botInstance.telegram.unpinAllChatMessages(chatId).catch(() => {})
 
     const msg = await botInstance.telegram.sendMessage(
       chatId,

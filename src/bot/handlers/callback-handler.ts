@@ -88,6 +88,12 @@ async function handleAISelect(ctx: BotContext, chatId: number, payload: string):
 
   await ctx.editMessageText(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *${formatAILabel(ai)}*`, { parse_mode: 'Markdown' })
   await ctx.answerCbQuery()
+
+  // Update pin to reflect new model
+  const state = getUserState(chatId, threadId)
+  if (state.selectedProject) {
+    await pinProjectStatus(chatId, state.selectedProject, formatAILabel(ai))
+  }
 }
 
 async function handleBookmarkAdd(ctx: BotContext, chatId: number): Promise<void> {

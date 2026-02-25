@@ -9,6 +9,9 @@ import { cleanupImage } from '../utils/image-downloader.js'
 import { splitText } from '../utils/text-splitter.js'
 import { detectImagePaths } from '../utils/image-detector.js'
 import { parseCrossProjectTasks, stripRunDirectives } from '../utils/cross-project-parser.js'
+import { parseCommandDirectives, stripCommandDirectives } from '../utils/command-executor.js'
+import { createFakeContext } from '../utils/fake-context.js'
+import { dispatchPluginCommand } from '../plugins/loader.js'
 import { getRandomTidbit } from '../utils/idle-tidbits.js'
 import { getAISessionId } from '../ai/session-store.js'
 import { detectChoices } from '../utils/choice-detector.js'
@@ -213,7 +216,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
           updateRunnerTool(item.project.path, toolName)
           updateStatus()
         },
-        onResult: (result) => {
+        onResult: async (result) => {
           if (resolved) return
           clearTimeout(timer)
           try {
@@ -228,7 +231,26 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
             })
 
             const rawText = accumulated || result.resultText || ''
-            const responseText = stripRunDirectives(rawText)
+            const afterRun = stripRunDirectives(rawText)
+
+            // Execute @cmd() directives Claude included in its response
+            const cmdDirectives = parseCommandDirectives(afterRun)
+            for (const cmd of cmdDirectives) {
+              try {
+                const fakeCtx = createFakeContext({
+                  chatId: item.chatId,
+                  commandText: cmd.command,
+                  telegram,
+                })
+                await dispatchPluginCommand(cmd.name, fakeCtx)
+              } catch (err) {
+                console.error(`[queue] @cmd(${cmd.command}) failed:`, err)
+              }
+            }
+
+            const responseText = cmdDirectives.length > 0
+              ? stripCommandDirectives(afterRun)
+              : afterRun
             const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
             const cost = (result.costUsd ?? 0).toFixed(4)
 

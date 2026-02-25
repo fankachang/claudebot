@@ -3,9 +3,13 @@
  * appropriate button configurations.
  *
  * Three response types:
- *   1. Numbered/lettered options → one button per option
- *   2. Yes/No question → ✅/❌ buttons
+ *   1. Numbered/lettered options + selection prompt → one button per option
+ *   2. Yes/No question → confirm buttons
  *   3. Open question → no buttons (user types freely)
+ *
+ * Key: numbered lists are ONLY treated as options if
+ * accompanied by a selection prompt (e.g. "哪個？", "Which one?", "要做哪些？").
+ * Otherwise they're just explanatory lists → no buttons.
  */
 
 export interface DetectedChoice {
@@ -18,13 +22,10 @@ export interface ChoiceResult {
   readonly choices: readonly DetectedChoice[]
 }
 
-/** Patterns for numbered/lettered options like "1. xxx" or "A) xxx" or "- **Option A**: xxx" */
+/** Patterns for numbered/lettered options like "1. xxx" or "A) xxx" */
 const OPTION_PATTERNS = [
-  // "1. text" or "1) text" or "1: text"
   /^\s*(\d+)\s*[.):\uFF0E]\s+(.+)/,
-  // "A. text" or "A) text" or "a) text"
   /^\s*([A-Za-z])\s*[.):\uFF0E]\s+(.+)/,
-  // "- **label**: description" or "- label: description"
   /^\s*[-*]\s+\*{0,2}(.+?)\*{0,2}\s*[:：]\s+(.+)/,
 ]
 
@@ -47,14 +48,38 @@ const YESNO_PATTERNS = [
   /[Rr]eady to proceed/,
 ]
 
-/** General question patterns */
+/** Patterns that indicate the list is a SELECTION prompt (user must choose) */
+const SELECTION_PROMPT_PATTERNS = [
+  // Chinese
+  /你(覺得|想|要|偏好|選擇)(做)?哪/,
+  /要做哪/,
+  /選哪/,
+  /想做哪/,
+  /選擇哪/,
+  /要哪個/,
+  /做哪個/,
+  /哪個好/,
+  /你選/,
+  /請選/,
+  /先做哪/,
+  /優先/,
+
+  // English
+  /[Ww]hich (one|option|approach|method|way)/,
+  /[Ww]hat would you (prefer|like|choose)/,
+  /[Pp]ick (one|a|an)/,
+  /[Cc]hoose (one|from|between)/,
+  /[Ww]hat do you think/,
+  /[Ww]hat('s| is) your (preference|choice)/,
+  /[Ll]et me know (which|what)/,
+  /[Ww]hich do you/,
+]
+
+/** General question patterns (open-ended, no buttons) */
 const QUESTION_PATTERNS = [
   /[？?]\s*$/,
   /需要我/,
   /[Ll]et me know/,
-  /[Ww]hich (one|option|approach)/,
-  /你(想|要|偏好|選擇)/,
-  /請(選擇|告訴|確認)/,
 ]
 
 const MAX_OPTION_LABEL_LENGTH = 40
@@ -65,14 +90,17 @@ export function detectChoices(text: string): ChoiceResult {
     return { type: 'none', choices: [] }
   }
 
-  // Only scan the tail of the response to avoid false positives
   const tail = text.slice(-MAX_TAIL_SCAN).trim()
   const lines = tail.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
 
   // Step 1: Try to detect numbered/lettered options
   const options = extractOptions(lines)
   if (options.length >= 2 && options.length <= 6) {
-    return { type: 'options', choices: options }
+    // CRITICAL: Only treat as selectable options if there's a selection prompt nearby
+    if (hasSelectionPrompt(lines)) {
+      return { type: 'options', choices: options }
+    }
+    // Numbered list without selection prompt = just an explanation, no buttons
   }
 
   // Step 2: Check for yes/no question
@@ -87,7 +115,7 @@ export function detectChoices(text: string): ChoiceResult {
     }
   }
 
-  // Step 3: Check for open-ended question (no buttons, just prompt user to type)
+  // Step 3: Check for open-ended question
   if (QUESTION_PATTERNS.some((p) => p.test(lastLine))) {
     return { type: 'open', choices: [] }
   }
@@ -95,13 +123,27 @@ export function detectChoices(text: string): ChoiceResult {
   return { type: 'none', choices: [] }
 }
 
+/**
+ * Check if the tail text contains a selection prompt — a line that asks
+ * the user to pick/choose from the listed options.
+ *
+ * Scans the last 10 lines for selection-related phrases.
+ */
+function hasSelectionPrompt(lines: readonly string[]): boolean {
+  const scanLines = lines.slice(-10)
+  for (const line of scanLines) {
+    if (SELECTION_PROMPT_PATTERNS.some((p) => p.test(line))) {
+      return true
+    }
+  }
+  return false
+}
+
 const MAX_GAP_LINES = 3
 
 function extractOptions(lines: readonly string[]): readonly DetectedChoice[] {
   const options: DetectedChoice[] = []
 
-  // Scan from the end to find the option block
-  // Options are usually at the tail, preceded by a question line
   let foundOptionBlock = false
   let gapCount = 0
 
@@ -114,12 +156,10 @@ function extractOptions(lines: readonly string[]): readonly DetectedChoice[] {
       if (match) {
         const key = match[1]
         const rawText = match[2]
-        // Clean up markdown bold/italic
         const cleanText = rawText.replace(/\*{1,2}(.+?)\*{1,2}/g, '$1').trim()
         const label = cleanText.length > MAX_OPTION_LABEL_LENGTH
           ? cleanText.slice(0, MAX_OPTION_LABEL_LENGTH - 1) + '\u2026'
           : cleanText
-        // Prepend key for clarity: "1. text" or "A. text"
         const displayLabel = /\d/.test(key) ? `${key}. ${label}` : `${key}) ${label}`
         options.unshift({ label: displayLabel, value: cleanText })
         matched = true
@@ -129,13 +169,11 @@ function extractOptions(lines: readonly string[]): readonly DetectedChoice[] {
       }
     }
 
-    // Tolerate up to MAX_GAP_LINES non-option lines (description text between options)
     if (!matched && foundOptionBlock) {
       gapCount++
       if (gapCount > MAX_GAP_LINES) break
     }
 
-    // Don't scan too far back
     if (options.length >= 6) break
   }
 

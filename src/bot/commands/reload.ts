@@ -1,7 +1,8 @@
-import { env } from '../../config/env.js'
 import type { BotContext } from '../../types/context.js'
 import { reloadPlugins, getLoadedPlugins } from '../../plugins/loader.js'
-import { getBotInstance, CORE_COMMANDS, wireReminderSendFn } from '../bot.js'
+import { getEnabledPlugins } from '../../plugins/plugin-manager.js'
+import { getBotInstance, CORE_COMMANDS, wireReminderSendFn, wireSchedulerSendFn } from '../bot.js'
+import { setAvailableCommands } from '../../utils/system-prompt.js'
 
 export async function reloadCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -9,17 +10,19 @@ export async function reloadCommand(ctx: BotContext): Promise<void> {
 
   try {
     const before = getLoadedPlugins().length
-    const plugins = await reloadPlugins(env.PLUGINS)
+    const plugins = await reloadPlugins(getEnabledPlugins())
 
-    // Re-wire reminder sendFn using the same module instance from loader
+    // Re-wire plugin integrations using the same module instance from loader
     const bot = getBotInstance()
     if (bot) {
       wireReminderSendFn(bot)
+      wireSchedulerSendFn(bot)
 
-      // Update Telegram command list
+      // Update Telegram command list + system prompt
       const pluginCommands = plugins.flatMap((p) =>
         p.commands.map((cmd) => ({ command: cmd.name, description: cmd.description }))
       )
+      setAvailableCommands([...CORE_COMMANDS, ...pluginCommands])
       await bot.telegram.setMyCommands([...CORE_COMMANDS, ...pluginCommands]).catch(() => {})
     }
 

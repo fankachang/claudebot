@@ -102,6 +102,25 @@ export async function transcribeAudio(
   }
 }
 
+/**
+ * Push additional hotwords to the running Sherpa server.
+ * Words should be space-separated characters for Chinese,
+ * or plain English words (e.g. "ClaudeBot", "WeeTube").
+ */
+export async function addHotwords(words: readonly string[]): Promise<void> {
+  if (words.length === 0) return
+  try {
+    ensureProcess()
+    await sendCommand({
+      action: 'set_hotwords',
+      config: { words: [...words] },
+    })
+    console.log(`[sherpa] Injected ${words.length} hotwords:`, words.slice(0, 10).join(', '))
+  } catch (err) {
+    console.warn('[sherpa] Failed to set hotwords:', err)
+  }
+}
+
 export function warmupSherpa(): void {
   try {
     ensureProcess()

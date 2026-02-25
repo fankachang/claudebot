@@ -11,3 +11,4 @@ data/
 .launcher.pid
 src/dashboard/web/node_modules/
 src/dashboard/web/dist/
+claudebot-plugins/

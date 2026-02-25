@@ -65,6 +65,19 @@ export function toggleTodo(projectPath: string, index: number): boolean {
   return true
 }
 
+export interface ProjectTodos {
+  readonly projectPath: string
+  readonly items: readonly TodoItem[]
+}
+
+/** Get todos across ALL projects (for /todos all). */
+export function getAllTodos(): readonly ProjectTodos[] {
+  const data = load()
+  return Object.entries(data)
+    .filter(([, items]) => items.length > 0)
+    .map(([projectPath, items]) => ({ projectPath, items }))
+}
+
 export function clearDone(projectPath: string): number {
   const data = load()
   const list = data[projectPath] ?? []

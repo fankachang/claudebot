@@ -1,6 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AIBackend } from './types.js'
+import { env } from '../config/env.js'
+
+/** Short bot identifier from token (last 6 chars) for session isolation. */
+const BOT_ID = env.BOT_TOKEN.slice(-6)
 
 const SESSION_FILE = join(process.cwd(), '.sessions.json')
 
@@ -25,7 +29,7 @@ function saveSessions(): void {
 const sessions = loadSessions()
 
 function makeKey(backend: AIBackend, projectPath: string): string {
-  return `${backend}:${projectPath}`
+  return `${BOT_ID}:${backend}:${projectPath}`
 }
 
 export function getAISessionId(backend: AIBackend, projectPath: string): string | null {

@@ -1,10 +1,13 @@
 import type { BotContext } from '../../types/context.js'
-import { getUserState } from '../state.js'
-import { resolveBackend } from '../../ai/types.js'
+import { getUserState, setUserProject } from '../state.js'
+import { resolveBackend, formatAILabel } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue, isProcessing, getQueueLength } from '../../claude/queue.js'
 import { cancelAnyRunning } from '../../ai/registry.js'
 import { transcribeVoiceFile } from './voice-handler.js'
+import { scanProjects } from '../../config/projects.js'
+import { updateBotBio, pinProjectStatus } from '../bio-updater.js'
+import type { ProjectInfo } from '../../types/index.js'
 
 const COLLECT_MS = 1000
 const pendingMessages = new Map<number, { texts: string[]; replyQuote: string; timer: ReturnType<typeof setTimeout> }>()
@@ -160,6 +163,27 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
   }
 }
 
+/**
+ * Detect if user's message mentions a known project name.
+ * Returns the first mentioned project, or null.
+ */
+function detectProjectMention(text: string): ProjectInfo | null {
+  const projects = scanProjects()
+  const lower = text.toLowerCase()
+
+  // Sort by name length descending to match longer names first
+  // (e.g. "ClaudeBot" before "claude")
+  const sorted = [...projects].sort((a, b) => b.name.length - a.name.length)
+
+  for (const project of sorted) {
+    if (lower.includes(project.name.toLowerCase())) {
+      return project
+    }
+  }
+
+  return null
+}
+
 function flushMessages(chatId: number, threadId?: number): void {
   const pending = pendingMessages.get(chatId)
   if (!pending) return
@@ -168,9 +192,33 @@ function flushMessages(chatId: number, threadId?: number): void {
   const state = getUserState(chatId, threadId)
   if (!state.selectedProject) return
 
+  const combined = pending.replyQuote + pending.texts.join('\n\n')
+  const isGeneralMode = state.selectedProject.name === 'general'
+
+  // Auto-switch: if in chat/general mode and user mentions a project name,
+  // switch to that project so Claude can actually work on the code
+  if (isGeneralMode) {
+    const detected = detectProjectMention(combined)
+    if (detected) {
+      setUserProject(chatId, detected, threadId)
+      updateBotBio(detected).catch(() => {})
+      pinProjectStatus(chatId, detected, formatAILabel(state.ai)).catch(() => {})
+
+      const sessionId = getAISessionId(resolveBackend(state.ai.backend), detected.path)
+      enqueue({
+        chatId,
+        prompt: combined,
+        project: detected,
+        ai: state.ai,
+        sessionId,
+        imagePaths: [],
+      })
+      return
+    }
+  }
+
   const project = state.selectedProject
   const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
-  const combined = pending.replyQuote + pending.texts.join('\n\n')
 
   enqueue({
     chatId,

@@ -3,6 +3,7 @@ import { getUserState, setUserAI } from '../state.js'
 import { buildModelKeyboard } from '../../telegram/keyboard-builder.js'
 import { formatAILabel } from '../../ai/types.js'
 import type { AIModelSelection, AIBackend } from '../../ai/types.js'
+import { pinProjectStatus } from '../bio-updater.js'
 
 const VALID_BACKENDS = new Set<string>(['claude', 'gemini', 'codex', 'auto'])
 
@@ -32,11 +33,18 @@ export async function modelCommand(ctx: BotContext): Promise<void> {
     return
   }
 
+  const updatePin = async (ai: AIModelSelection) => {
+    if (state.selectedProject) {
+      await pinProjectStatus(chatId, state.selectedProject, formatAILabel(ai))
+    }
+  }
+
   // /model auto
   if (args === 'auto') {
     const ai: AIModelSelection = { backend: 'auto', model: 'auto' }
     setUserAI(chatId, ai, threadId)
     await ctx.reply(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *auto* \u{6A21}\u{5F0F}\n\u{6839}\u{64DA}\u{63D0}\u{793A}\u{5167}\u{5BB9}\u{81EA}\u{52D5}\u{9078}\u{64C7}\u{6700}\u{4F73}\u{5F8C}\u{7AEF}`, { parse_mode: 'Markdown' })
+    await updatePin(ai)
     return
   }
 
@@ -51,6 +59,7 @@ export async function modelCommand(ctx: BotContext): Promise<void> {
         const ai: AIModelSelection = { backend: backend as AIBackend, model: modelName }
         setUserAI(chatId, ai, threadId)
         await ctx.reply(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *${formatAILabel(ai)}*`, { parse_mode: 'Markdown' })
+        await updatePin(ai)
         return
       }
     }
@@ -70,6 +79,7 @@ export async function modelCommand(ctx: BotContext): Promise<void> {
     const ai: AIModelSelection = { backend: 'auto', model: 'auto' }
     setUserAI(chatId, ai, threadId)
     await ctx.reply(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *auto*`, { parse_mode: 'Markdown' })
+    await updatePin(ai)
     return
   }
 
@@ -82,4 +92,5 @@ export async function modelCommand(ctx: BotContext): Promise<void> {
   const ai: AIModelSelection = { backend: backendStr as AIBackend, model: modelStr }
   setUserAI(chatId, ai, threadId)
   await ctx.reply(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *${formatAILabel(ai)}*`, { parse_mode: 'Markdown' })
+  await updatePin(ai)
 }

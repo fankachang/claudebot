@@ -18,6 +18,7 @@ import { newSessionCommand } from './commands/new-session.js'
 import { favCommand } from './commands/fav.js'
 import { shortcutCommand } from './commands/shortcut.js'
 import { todoCommand, todosCommand } from './commands/todo.js'
+import { ideaCommand, ideasCommand } from './commands/idea.js'
 import { mkdirCommand } from './commands/mkdir.js'
 import { cdCommand } from './commands/cd.js'
 import { promptCommand } from './commands/prompt.js'
@@ -26,11 +27,15 @@ import { chatCommand } from './commands/chat.js'
 import { restartCommand, handleRestartCallback } from './commands/restart.js'
 import { newbotCommand } from './commands/newbot.js'
 import { reloadCommand } from './commands/reload.js'
+import { storeCommand } from './commands/store.js'
+import { installCommand } from './commands/install.js'
+import { uninstallCommand } from './commands/uninstall.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
 import { voiceHandler } from './handlers/voice-handler.js'
-import { warmupSherpa } from '../asr/sherpa-client.js'
+import { warmupSherpa, addHotwords } from '../asr/sherpa-client.js'
+import { scanProjects } from '../config/projects.js'
 import { setupQueueProcessor } from './queue-processor.js'
 import { setBotInstance } from './bio-updater.js'
 import {
@@ -41,8 +46,10 @@ import {
   dispatchPluginMessage,
   dispatchPluginCallback,
 } from '../plugins/loader.js'
+import { getEnabledPlugins } from '../plugins/plugin-manager.js'
 import { startHeartbeat } from '../dashboard/heartbeat-writer.js'
 import { startCommandReader } from '../dashboard/command-reader.js'
+import { setAvailableCommands } from '../utils/system-prompt.js'
 
 let botInstance: Telegraf<BotContext> | null = null
 
@@ -60,9 +67,14 @@ export const CORE_COMMANDS = [
   { command: 'fav', description: '管理書籤' },
   { command: 'todo', description: '新增待辦' },
   { command: 'todos', description: '查看待辦' },
+  { command: 'idea', description: '記錄靈感' },
+  { command: 'ideas', description: '瀏覽靈感' },
   { command: 'run', description: '跨專案執行' },
   { command: 'chat', description: '通用對話模式' },
   { command: 'newbot', description: '建立新 bot 實例' },
+  { command: 'store', description: 'Plugin Store 瀏覽' },
+  { command: 'install', description: '安裝插件' },
+  { command: 'uninstall', description: '卸載插件' },
   { command: 'reload', description: '熱重載插件' },
   { command: 'help', description: '顯示說明' },
 ] as const
@@ -73,6 +85,16 @@ export function wireReminderSendFn(bot: Telegraf<BotContext>): void {
   ;(mod.setReminderSendFn as (fn: (chatId: number, text: string, extra?: Record<string, unknown>) => Promise<void>) => void)(
     async (chatId, text, extra) => {
       await bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra })
+    }
+  )
+}
+
+export function wireSchedulerSendFn(bot: Telegraf<BotContext>): void {
+  const mod = getPluginModule('scheduler')
+  if (!mod || typeof mod.setSchedulerSendFn !== 'function') return
+  ;(mod.setSchedulerSendFn as (fn: (chatId: number, text: string, extra?: { parse_mode?: 'Markdown' }) => Promise<void>) => void)(
+    async (chatId, text, extra) => {
+      await bot.telegram.sendMessage(chatId, text, { ...extra })
     }
   )
 }
@@ -100,6 +122,8 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   bot.command('fav', favCommand)
   bot.command('todo', todoCommand)
   bot.command('todos', todosCommand)
+  bot.command('idea', ideaCommand)
+  bot.command('ideas', ideasCommand)
   bot.command('mkdir', mkdirCommand)
   bot.command('cd', cdCommand)
   bot.command('prompt', promptCommand)
@@ -107,6 +131,9 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   bot.command('chat', chatCommand)
   bot.command('restart', restartCommand)
   bot.command('newbot', newbotCommand)
+  bot.command('store', storeCommand)
+  bot.command('install', installCommand)
+  bot.command('uninstall', uninstallCommand)
   bot.command('reload', reloadCommand)
 
   // Bookmark shortcuts /1 through /9
@@ -115,7 +142,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   }
 
   // Load plugins and register dispatchers
-  const plugins = await loadPlugins(env.PLUGINS)
+  const plugins = await loadPlugins(getEnabledPlugins())
 
   // Collect all command names: active + discovered (for pre-registration)
   const activeCommandNames = new Set(
@@ -133,6 +160,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
 
   // Wire plugin-specific integrations (uses same module instance from loader)
   wireReminderSendFn(bot)
+  wireSchedulerSendFn(bot)
 
   // Plugin message interceptor — always registered (dispatcher checks dynamically)
   bot.on('text', async (ctx, next) => {
@@ -179,12 +207,20 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   // Pre-spawn Sherpa ASR process (avoid cold start on first voice)
   if (env.SHERPA_SERVER_PATH) {
     warmupSherpa()
+
+    // Inject project names as hotwords so ASR recognises them correctly
+    const projectNames = scanProjects().map((p) => p.name)
+    // Delay slightly to let Sherpa finish init before sending commands
+    setTimeout(() => { addHotwords(projectNames).catch(() => {}) }, 3_000)
   }
 
   // Register commands with Telegram for autocomplete (core + plugins)
   const pluginCommands = plugins.flatMap((p) =>
     p.commands.map((cmd) => ({ command: cmd.name, description: cmd.description }))
   )
+
+  // Inject all commands into system prompt so Claude knows what's available
+  setAvailableCommands([...CORE_COMMANDS, ...pluginCommands])
 
   bot.telegram.setMyCommands([...CORE_COMMANDS, ...pluginCommands]).catch(() => {})
 
