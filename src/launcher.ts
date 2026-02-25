@@ -1,8 +1,26 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { readdirSync, writeFileSync, unlinkSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const root = process.cwd()
+const PID_FILE = path.join(root, '.launcher.pid')
+
+// Kill previous launcher if PID file exists
+try {
+  const oldPid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10)
+  if (oldPid && oldPid !== process.pid) {
+    process.kill(oldPid, 'SIGTERM')
+    console.log(`Killed previous launcher (PID ${oldPid})`)
+    // Give it a moment to clean up
+    const wait = (ms: number) => { const end = Date.now() + ms; while (Date.now() < end) {} }
+    wait(1000)
+  }
+} catch {
+  // No previous launcher or already dead — fine
+}
+
+// Write our PID
+writeFileSync(PID_FILE, String(process.pid), 'utf-8')
 
 // Find all .env files: .env, .env.bot2, .env.bot3, ...
 const envFiles = readdirSync(root)
@@ -18,7 +36,7 @@ if (envFiles.length === 0) {
 const singleEnv = process.argv.find((_, i, arr) => arr[i - 1] === '--env')
 const filesToLaunch = singleEnv ? [singleEnv] : envFiles
 
-console.log(`Launching ${filesToLaunch.length} bot(s): ${filesToLaunch.join(', ')}`)
+console.log(`Launcher PID ${process.pid} — ${filesToLaunch.length} bot(s): ${filesToLaunch.join(', ')}`)
 
 const tsxBin = path.join(root, 'node_modules', '.bin', 'tsx')
 const indexPath = path.join(root, 'src', 'index.ts')
@@ -97,15 +115,15 @@ for (const envFile of filesToLaunch) {
   spawnBot(envFile)
 }
 
-// Dashboard server now runs in-process inside the main bot (see index.ts).
-// No separate child process needed — this keeps the response broker EventEmitter
-// in the same process as the queue-processor for zero-latency streaming.
-
-// Graceful shutdown: forward signal to all children
+// Graceful shutdown: forward signal to all children, clean up PID file
 const shutdown = (signal: string) => {
   if (shuttingDown) return
   shuttingDown = true
   console.log(`\n${signal} — stopping all bots...`)
+
+  // Clean up PID file
+  try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+
   for (const [, child] of children) {
     child.kill('SIGTERM')
   }
