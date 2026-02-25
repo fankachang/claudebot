@@ -52,6 +52,10 @@ const envSchema = z.object({
   PLUGIN_REGISTRY_URL: z
     .string()
     .default('https://raw.githubusercontent.com/Jeffrey0117/claudebot-plugins/main/registry.json'),
+  PREVENT_SLEEP: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
 })
 
 export type Env = z.infer<typeof envSchema>

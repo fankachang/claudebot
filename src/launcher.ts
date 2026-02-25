@@ -1,6 +1,7 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, execSync, type ChildProcess } from 'node:child_process'
 import { readdirSync, writeFileSync, unlinkSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import dotenv from 'dotenv'
 
 const root = process.cwd()
 const PID_FILE = path.join(root, '.launcher.pid')
@@ -21,6 +22,46 @@ try {
 
 // Write our PID
 writeFileSync(PID_FILE, String(process.pid), 'utf-8')
+
+// Load .env to check PREVENT_SLEEP
+dotenv.config()
+
+// Prevent Windows sleep when PREVENT_SLEEP=true
+let sleepGuard: ChildProcess | null = null
+
+if (process.env.PREVENT_SLEEP === 'true' && process.platform === 'win32') {
+  // PowerShell script that calls SetThreadExecutionState in a loop.
+  // ES_CONTINUOUS (0x80000000) | ES_SYSTEM_REQUIRED (0x00000001) = 0x80000001
+  // This tells Windows "don't sleep", and auto-reverts when the process dies.
+  const psScript = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class SleepGuard {
+    [DllImport("kernel32.dll")]
+    public static extern uint SetThreadExecutionState(uint esFlags);
+}
+"@
+Write-Host "[sleep-guard] Active — preventing system sleep"
+while ($true) {
+    [SleepGuard]::SetThreadExecutionState(0x80000001) | Out-Null
+    Start-Sleep -Seconds 30
+}
+`
+  sleepGuard = spawn('powershell', ['-NoProfile', '-Command', psScript], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+
+  sleepGuard.stdout?.on('data', (chunk: Buffer) => {
+    for (const line of chunk.toString().split('\n')) {
+      if (line.trim()) console.log(line.trim())
+    }
+  })
+
+  sleepGuard.on('close', () => {
+    sleepGuard = null
+  })
+}
 
 // Find all .env files: .env, .env.bot2, .env.bot3, ...
 const envFiles = readdirSync(root)
@@ -123,6 +164,12 @@ const shutdown = (signal: string) => {
 
   // Clean up PID file
   try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+
+  // Stop sleep guard
+  if (sleepGuard) {
+    sleepGuard.kill('SIGTERM')
+    sleepGuard = null
+  }
 
   for (const [, child] of children) {
     child.kill('SIGTERM')
