@@ -51,7 +51,7 @@ const envSchema = z.object({
     .transform((val) => val === 'true'),
   PLUGIN_REGISTRY_URL: z
     .string()
-    .default('https://raw.githubusercontent.com/Jeffrey0117/claudebot-plugins/main/registry.json'),
+    .default('https://raw.githubusercontent.com/Jeffrey0117/claudebot-plugins/master/registry.json'),
   PREVENT_SLEEP: z
     .enum(['true', 'false'])
     .default('false')
