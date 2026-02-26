@@ -87,7 +87,7 @@ const translations = {
 
     // Getting started
     start_title: '開始使用',
-    start_subtitle: '三步驟，從零到指揮中心',
+    start_subtitle: '複製、設定、啟動',
     start_step1: '步驟一：複製專案',
     start_step2: '步驟二：設定環境',
     start_step3: '步驟三：啟動',
@@ -209,7 +209,7 @@ const translations = {
 
     // Getting started
     start_title: 'Get Started',
-    start_subtitle: 'Three steps from zero to command center',
+    start_subtitle: 'Clone, configure, launch',
     start_step1: 'Step 1: Clone',
     start_step2: 'Step 2: Configure',
     start_step3: 'Step 3: Launch',

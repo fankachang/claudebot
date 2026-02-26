@@ -101,8 +101,8 @@
 
     <div class="relative max-w-4xl mx-auto text-center">
       <div class="mb-8">
-        <img src="assets/images/logo.png" alt="ClaudeBot" class="w-20 h-20 mx-auto rounded-2xl shadow-md mb-5">
-        <h1 class="font-display text-5xl sm:text-6xl lg:text-7xl font-bold text-ink tracking-tight">ClaudeBot</h1>
+        <img src="assets/images/logo.png" alt="ClaudeBot" class="w-28 h-28 mx-auto rounded-3xl shadow-lg mb-6">
+        <h1 class="font-display text-6xl sm:text-7xl lg:text-8xl font-black text-sky-400 tracking-tight">ClaudeBot</h1>
       </div>
 
       <p class="text-xl sm:text-2xl font-display font-semibold text-slate-500 tracking-wide uppercase mb-4">
@@ -205,6 +205,36 @@
           <svg class="w-7 h-7 text-accent mb-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="10" width="7" height="11" rx="1"/><rect x="3" y="13" width="7" height="8" rx="1"/></svg>
           <h3 class="font-display font-bold text-ink text-lg mb-2" data-i18n="feat_dashboard_title">Web 儀表板</h3>
           <p class="text-slate-500 text-sm leading-relaxed" data-i18n="feat_dashboard_desc">React 面板 + WebSocket 即時監控，視覺化掌握 Bot 狀態。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GETTING STARTED ============ -->
+  <section id="getting-started" class="getting-started-bg py-20 px-5 text-white border-t border-slate-800">
+    <div class="max-w-2xl mx-auto">
+      <div class="text-center mb-10 fade-in">
+        <h2 class="font-display text-2xl sm:text-3xl font-bold mb-3" data-i18n="start_title">開始使用</h2>
+        <p class="text-slate-400" data-i18n="start_subtitle">複製、設定、啟動</p>
+      </div>
+
+      <div class="fade-in">
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dot" style="background:#ef4444"></div>
+            <div class="code-dot" style="background:#f59e0b"></div>
+            <div class="code-dot" style="background:#22c55e"></div>
+          </div>
+          <pre><code><span class="text-slate-500"># Clone & install</span>
+git clone https://github.com/Jeffrey0117/ClaudeBot.git
+cd ClaudeBot && npm install
+
+<span class="text-slate-500"># Configure</span>
+cp .env.example .env
+<span class="text-slate-500"># Fill in: BOT_TOKEN, PASSWORD, ALLOWED_PROJECTS</span>
+
+<span class="text-slate-500"># Launch</span>
+npm run dev</code></pre>
         </div>
       </div>
     </div>
@@ -416,70 +446,6 @@
           </table>
         </div>
         <div id="command-no-results" class="no-results" data-i18n="commands_no_results">找不到符合的指令</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ GETTING STARTED ============ -->
-  <section id="getting-started" class="getting-started-bg py-28 px-5 text-white border-t border-slate-800">
-    <div class="max-w-3xl mx-auto">
-      <div class="text-center mb-14 fade-in">
-        <h2 class="font-display text-2xl sm:text-3xl font-bold mb-3" data-i18n="start_title">開始使用</h2>
-        <p class="text-slate-400" data-i18n="start_subtitle">三步驟，從零到指揮中心</p>
-      </div>
-
-      <div class="space-y-8 fade-in">
-        <div>
-          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2.5">
-            <span class="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-[11px] font-bold">1</span>
-            <span data-i18n="start_step1">步驟一：複製專案</span>
-          </h3>
-          <div class="code-block">
-            <div class="code-header">
-              <div class="code-dot" style="background:#ef4444"></div>
-              <div class="code-dot" style="background:#f59e0b"></div>
-              <div class="code-dot" style="background:#22c55e"></div>
-            </div>
-            <pre><code>git clone https://github.com/Jeffrey0117/ClaudeBot.git
-cd ClaudeBot && npm install</code></pre>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2.5">
-            <span class="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-[11px] font-bold">2</span>
-            <span data-i18n="start_step2">步驟二：設定環境</span>
-          </h3>
-          <div class="code-block">
-            <div class="code-header">
-              <div class="code-dot" style="background:#ef4444"></div>
-              <div class="code-dot" style="background:#f59e0b"></div>
-              <div class="code-dot" style="background:#22c55e"></div>
-            </div>
-            <pre><code>cp .env.example .env</code></pre>
-          </div>
-          <p class="text-slate-400 text-sm mt-3 mb-2" data-i18n="start_env_desc">在 .env 中填入以下設定：</p>
-          <div class="bg-white/5 rounded-md border border-white/10 p-4 space-y-1.5 text-xs font-mono">
-            <div><span class="text-blue-400">BOT_TOKEN</span><span class="text-slate-500">=</span><span class="text-slate-500"> # <span data-i18n="start_env_token">從 @BotFather 取得</span></span></div>
-            <div><span class="text-blue-400">PASSWORD</span><span class="text-slate-500">=</span><span class="text-slate-500"> # <span data-i18n="start_env_password">你的登入密碼</span></span></div>
-            <div><span class="text-blue-400">ALLOWED_PROJECTS</span><span class="text-slate-500">=</span><span class="text-slate-500"> # <span data-i18n="start_env_projects">專案路徑（逗號分隔）</span></span></div>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2.5">
-            <span class="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-[11px] font-bold">3</span>
-            <span data-i18n="start_step3">步驟三：啟動</span>
-          </h3>
-          <div class="code-block">
-            <div class="code-header">
-              <div class="code-dot" style="background:#ef4444"></div>
-              <div class="code-dot" style="background:#f59e0b"></div>
-              <div class="code-dot" style="background:#22c55e"></div>
-            </div>
-            <pre><code>npm run dev</code></pre>
-          </div>
-        </div>
       </div>
     </div>
   </section>
