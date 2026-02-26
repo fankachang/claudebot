@@ -1106,10 +1106,11 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
       })
     })
 
-    // ── Hash change handler ──
+    // ── Hash change handler (only for chapter IDs, not section anchors) ──
     window.addEventListener('hashchange', function() {
       var hash = window.location.hash.slice(1)
-      if (hash && document.getElementById(hash)) {
+      var el = document.getElementById(hash)
+      if (el && el.classList.contains('guide-chapter')) {
         navigateTo(hash)
       }
     })
