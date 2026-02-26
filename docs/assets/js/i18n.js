@@ -15,6 +15,7 @@ const translations = {
     nav_plugins: '插件',
     nav_commands: '指令',
     nav_start: '開始使用',
+    nav_docs: '文件',
 
     // Hero
     hero_tagline: '不只是 Claude 的接口。',
@@ -129,6 +130,7 @@ const translations = {
     footer_resources: '資源',
     footer_docs: 'Claude Code 文檔',
     footer_plugin_store: 'Plugin Store',
+    footer_guide: '使用指南',
     footer_license: '授權條款',
   },
   en: {
@@ -137,6 +139,7 @@ const translations = {
     nav_plugins: 'Plugins',
     nav_commands: 'Commands',
     nav_start: 'Get Started',
+    nav_docs: 'Docs',
 
     // Hero
     hero_tagline: 'Not a pipe to Claude.',
@@ -251,6 +254,7 @@ const translations = {
     footer_resources: 'Resources',
     footer_docs: 'Claude Code Docs',
     footer_plugin_store: 'Plugin Store',
+    footer_guide: 'Guide',
     footer_license: 'License',
   }
 }
