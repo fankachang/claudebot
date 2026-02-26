@@ -105,6 +105,7 @@
       </div>
     </div>
 
+    <div class="guide-body">
     <main class="guide-main">
 
       <!-- ==================== Ch1: Overview ==================== -->
@@ -151,7 +152,13 @@
         <a href="https://github.com/Jeffrey0117/ClaudeBot/tree/master/src" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <div></div>
+          <a href="#ch2" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch2_title">快速開始</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch2: Quick Start ==================== -->
@@ -205,7 +212,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
           <span data-i18n="ch2_note">確保 Claude CLI 已安裝並登入（執行 <code>claude --version</code> 驗證）。</span>
         </div>
 
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch1" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch1_title">總覽</span>
+          </a>
+          <a href="#ch3" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch3_title">多 AI 後端</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch3: Multi-AI ==================== -->
@@ -272,7 +288,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/tree/master/src/ai" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/ai/router.ts, src/ai/gemini-runner.ts, src/claude/claude-runner.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch2" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch2_title">快速開始</span>
+          </a>
+          <a href="#ch4" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch4_title">佇列系統</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch4: Queue System ==================== -->
@@ -318,7 +343,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/claude/queue.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/claude/queue.ts, src/claude/file-lock.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch3" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch3_title">多 AI 後端</span>
+          </a>
+          <a href="#ch5" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch5_title">Session 與記憶</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch5: Session & Memory ==================== -->
@@ -368,7 +402,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/ai/session-store.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/ai/session-store.ts, src/bot/last-response-store.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch4" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch4_title">佇列系統</span>
+          </a>
+          <a href="#ch6" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch6_title">插件系統</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch6: Plugin System ==================== -->
@@ -445,7 +488,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/plugins/loader.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/plugins/loader.ts, src/types/plugin.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch5" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch5_title">Session 與記憶</span>
+          </a>
+          <a href="#ch7" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch7_title">語音辨識</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch7: Voice ASR ==================== -->
@@ -493,7 +545,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/tree/master/src/asr" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/asr/sherpa-client.ts, src/bot/handlers/voice-handler.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch6" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch6_title">插件系統</span>
+          </a>
+          <a href="#ch8" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch8_title">互動式 UI</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch8: Interactive UI ==================== -->
@@ -541,7 +602,16 @@ ALLOWED_PROJECTS=/home/user/project1,/home/user/project2</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/utils/choice-detector.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/utils/choice-detector.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch7" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch7_title">語音辨識</span>
+          </a>
+          <a href="#ch9" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch9_title">多 Bot 架構</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch9: Multi-Bot ==================== -->
@@ -579,7 +649,16 @@ DEFAULT_MODEL=gemini-flash</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/launcher.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/launcher.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch8" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch8_title">互動式 UI</span>
+          </a>
+          <a href="#ch10" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch10_title">自動提交</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch10: Auto-commit ==================== -->
@@ -621,7 +700,16 @@ DEFAULT_MODEL=gemini-flash</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/blob/master/src/utils/auto-commit.ts" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/utils/auto-commit.ts
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch9" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch9_title">多 Bot 架構</span>
+          </a>
+          <a href="#ch11" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch11_title">Web Dashboard</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch11: Web Dashboard ==================== -->
@@ -655,7 +743,16 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
         <a href="https://github.com/Jeffrey0117/ClaudeBot/tree/master/src/dashboard" target="_blank" class="source-link">
           <span>&#128194;</span> <span data-i18n="source_label">源碼</span>: src/dashboard/
         </a>
-        <hr class="chapter-divider">
+        <nav class="chapter-nav">
+          <a href="#ch10" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch10_title">自動提交</span>
+          </a>
+          <a href="#ch12" class="chapter-nav-link next">
+            <span class="chapter-nav-label" data-i18n="nav_next">下一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch12_title">指令大全</span>
+          </a>
+        </nav>
       </section>
 
       <!-- ==================== Ch12: Command Reference ==================== -->
@@ -858,9 +955,24 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
 
         <h3 class="text-base font-semibold text-ink mt-4 mb-2">/fav</h3>
         <p class="guide-text" data-i18n="ch12_fav_desc">/fav — 書籤功能，快速切換常用專案。</p>
+
+        <nav class="chapter-nav">
+          <a href="#ch11" class="chapter-nav-link prev">
+            <span class="chapter-nav-label" data-i18n="nav_prev">上一篇</span>
+            <span class="chapter-nav-title" data-i18n="ch11_title">Web Dashboard</span>
+          </a>
+          <div></div>
+        </nav>
       </section>
 
     </main>
+
+    <!-- Right TOC -->
+    <aside class="guide-toc" id="guide-toc">
+      <div class="toc-title" data-i18n="toc_title">本頁目錄</div>
+      <nav id="toc-links"></nav>
+    </aside>
+    </div><!-- /guide-body -->
 
     <!-- Footer -->
     <footer class="border-t border-slate-100 py-8 px-6 text-center text-xs text-slate-400">
@@ -894,9 +1006,50 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
       })
     })
 
-    // Scroll spy — highlight current chapter in sidebar
+    // Scroll spy — highlight current chapter in sidebar + update TOC
     var chapters = document.querySelectorAll('.guide-chapter')
     var navLinks = document.querySelectorAll('#sidebar-nav a[data-nav]')
+    var tocContainer = document.getElementById('toc-links')
+    var lastChapter = ''
+
+    function updateTOC(chapterId) {
+      if (chapterId === lastChapter) return
+      lastChapter = chapterId
+      var section = document.getElementById(chapterId)
+      if (!section || !tocContainer) return
+
+      var headings = section.querySelectorAll('.section-heading')
+      tocContainer.innerHTML = ''
+
+      headings.forEach(function(h, i) {
+        var id = chapterId + '-s' + i
+        h.setAttribute('id', id)
+        var a = document.createElement('a')
+        a.href = '#' + id
+        a.textContent = h.textContent
+        a.setAttribute('data-toc-target', id)
+        tocContainer.appendChild(a)
+      })
+    }
+
+    function updateTocHighlight() {
+      if (!tocContainer) return
+      var links = tocContainer.querySelectorAll('a')
+      var scrollY = window.scrollY + 120
+      var active = ''
+
+      links.forEach(function(a) {
+        var id = a.getAttribute('data-toc-target')
+        var el = document.getElementById(id)
+        if (el && el.offsetTop <= scrollY) {
+          active = id
+        }
+      })
+
+      links.forEach(function(a) {
+        a.classList.toggle('active', a.getAttribute('data-toc-target') === active)
+      })
+    }
 
     function updateScrollSpy() {
       var scrollY = window.scrollY + 100
@@ -909,6 +1062,9 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
       navLinks.forEach(function(link) {
         link.classList.toggle('active', link.getAttribute('data-nav') === current)
       })
+
+      if (current) updateTOC(current)
+      updateTocHighlight()
     }
 
     var scrollSpyTimer = null
@@ -920,6 +1076,16 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
       }, 50)
     })
     updateScrollSpy()
+
+    // Re-render TOC on language switch (headings text changes)
+    var origSwitchLang = window.switchLang
+    window.switchLang = function(lang) {
+      origSwitchLang(lang)
+      lastChapter = ''
+      requestAnimationFrame(function() {
+        updateScrollSpy()
+      })
+    }
 
     // Back to top button
     var backBtn = document.getElementById('back-to-top')

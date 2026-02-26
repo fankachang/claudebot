@@ -251,6 +251,9 @@ const guideTranslations = {
     note_label: '注意',
     warning_label: '警告',
     source_label: '源碼',
+    toc_title: '本頁目錄',
+    nav_prev: '上一篇',
+    nav_next: '下一篇',
   },
 
   en: {
@@ -492,6 +495,9 @@ const guideTranslations = {
     note_label: 'Note',
     warning_label: 'Warning',
     source_label: 'Source',
+    toc_title: 'On This Page',
+    nav_prev: 'Previous',
+    nav_next: 'Next',
   },
 }
 
