@@ -69,6 +69,7 @@
 .guide-content {
   margin-left: 260px;
   min-height: 100vh;
+  padding-left: 2rem;
 }
 
 .guide-topbar {
@@ -463,6 +464,7 @@
 
   .guide-content {
     margin-left: 0;
+    padding-left: 0;
   }
 
   .guide-topbar {
