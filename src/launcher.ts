@@ -168,6 +168,7 @@ let shuttingDown = false
 const RESPAWN_DELAY_MS = 2000
 const CRASH_WINDOW_MS = 60_000
 const MAX_CRASHES = 3
+const RESTART_EXIT_CODE = 42  // Intentional restart (from /restart command)
 
 // Track recent crash timestamps per bot to detect crash loops
 const crashHistory = new Map<string, number[]>()
@@ -206,7 +207,8 @@ function spawnBot(envFile: string): void {
   })
 
   child.on('close', (code) => {
-    console.log(`[${label}] exited (code ${code})`)
+    const intentionalRestart = code === RESTART_EXIT_CODE
+    console.log(`[${label}] exited (code ${code})${intentionalRestart ? ' [restart]' : ''}`)
     children.delete(envFile)
 
     if (shuttingDown) {
@@ -215,6 +217,16 @@ function spawnBot(envFile: string): void {
         console.log('All bots stopped.')
         process.exit(0)
       }
+      return
+    }
+
+    // Intentional restart (/restart command) — skip crash loop counting
+    if (intentionalRestart) {
+      console.log(`[${label}] intentional restart — respawning in ${RESPAWN_DELAY_MS}ms...`)
+      notifyAdmin(`🔄 <b>[${label}]</b> restarting...`)
+      setTimeout(() => {
+        if (!shuttingDown) spawnBot(envFile)
+      }, RESPAWN_DELAY_MS)
       return
     }
 

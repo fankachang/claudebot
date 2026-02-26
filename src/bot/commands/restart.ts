@@ -1,5 +1,24 @@
 import type { BotContext } from '../../types/context.js'
 import { isProcessing } from '../../claude/queue.js'
+import { getBotInstance } from '../bot.js'
+
+// Exit code 42 = intentional restart (distinguished from crashes in launcher)
+const RESTART_EXIT_CODE = 42
+
+async function gracefulRestart(): Promise<void> {
+  const bot = getBotInstance()
+  // Stop Telegraf polling first so Telegram releases the session immediately.
+  // Without this, the respawned bot hits 409 Conflict for up to 30s.
+  if (bot) {
+    try {
+      bot.stop('restart')
+    } catch {
+      // Best-effort — proceed with exit even if stop fails
+    }
+  }
+  // Small delay to let the stop signal propagate
+  setTimeout(() => process.exit(RESTART_EXIT_CODE), 500)
+}
 
 export async function restartCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -18,7 +37,7 @@ export async function restartCommand(ctx: BotContext): Promise<void> {
   }
 
   await ctx.reply('🔄 重啟中...')
-  setTimeout(() => process.exit(0), 500)
+  await gracefulRestart()
 }
 
 export async function handleRestartCallback(ctx: BotContext, data: string): Promise<boolean> {
@@ -27,7 +46,7 @@ export async function handleRestartCallback(ctx: BotContext, data: string): Prom
   if (data === 'restart:force') {
     await ctx.editMessageText('🔄 強制重啟中...').catch(() => {})
     await ctx.answerCbQuery()
-    setTimeout(() => process.exit(0), 500)
+    await gracefulRestart()
   } else if (data === 'restart:cancel') {
     await ctx.editMessageText('❌ 已取消重啟').catch(() => {})
     await ctx.answerCbQuery()
