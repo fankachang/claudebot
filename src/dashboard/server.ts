@@ -11,6 +11,7 @@ import { onResponseEvent, type ResponseEvent } from './response-broker.js'
 import { readChatHistory, appendChatMessage, type ChatMessage } from './chat-store.js'
 import { readActivities, daysAgo, todayStart } from '../plugins/stats/activity-logger.js'
 import { scanGitActivity } from '../plugins/stats/git-scanner.js'
+import { handlePluginRoute } from './plugin-routes.js'
 
 const HEARTBEAT_DIR = join(process.cwd(), 'data', 'heartbeat')
 const COMMANDS_FILE = join(process.cwd(), 'data', 'commands.json')
@@ -145,6 +146,12 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     })
     res.end()
     return
+  }
+
+  // Plugin routes (before core API routes)
+  if (path.startsWith('/api/plugins/')) {
+    const handled = await handlePluginRoute(req, res)
+    if (handled) return
   }
 
   // GET /api/status — aggregate all bot heartbeats

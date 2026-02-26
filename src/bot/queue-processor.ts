@@ -11,7 +11,7 @@ import { detectImagePaths } from '../utils/image-detector.js'
 import { parseCrossProjectTasks, stripRunDirectives } from '../utils/cross-project-parser.js'
 import { parseCommandDirectives, stripCommandDirectives } from '../utils/command-executor.js'
 import { createFakeContext } from '../utils/fake-context.js'
-import { dispatchPluginCommand } from '../plugins/loader.js'
+import { dispatchPluginCommand, dispatchOutputHooks } from '../plugins/loader.js'
 import { getRandomTidbit } from '../utils/idle-tidbits.js'
 import { getAISessionId } from '../ai/session-store.js'
 import { detectChoices } from '../utils/choice-detector.js'
@@ -246,12 +246,27 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
 
             const rawText = accumulated || result.resultText || ''
 
-            // Save last response tail for short-reply context injection
-            if (rawText) {
-              setLastResponse(item.project.path, rawText)
+            // --- Output hooks: let plugins intercept/modify response ---
+            const hookResult = await dispatchOutputHooks(rawText, {
+              projectPath: item.project.path,
+              projectName: item.project.name,
+              model: resolvedAI.model,
+              backend: String(backend),
+              sessionId: item.sessionId ?? '',
+            })
+            const hookedText = hookResult.text
+
+            if (hookResult.warnings.length > 0) {
+              const warnText = hookResult.warnings.join('\n')
+              telegram.sendMessage(item.chatId, `\u{26A0}\u{FE0F} ${warnText}`).catch(() => {})
             }
 
-            const afterRun = stripRunDirectives(rawText)
+            // Save last response tail for short-reply context injection
+            if (hookedText) {
+              setLastResponse(item.project.path, hookedText)
+            }
+
+            const afterRun = stripRunDirectives(hookedText)
 
             // Execute @cmd() directives Claude included in its response
             const cmdDirectives = parseCommandDirectives(afterRun)
@@ -356,13 +371,15 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
               for (let i = 0; i < chunks.length; i++) {
                 const chunk = chunks[i]
                 const isLast = i === chunks.length - 1
-                chain = chain.then(() =>
-                  telegram.sendMessage(
-                    item.chatId,
-                    chunk,
-                    isLast && replyButtons ? { ...replyButtons } : undefined,
-                  ).then(() => {})
-                )
+                const extra = isLast && replyButtons ? { ...replyButtons } : {}
+                chain = chain.then(async () => {
+                  try {
+                    await telegram.sendMessage(item.chatId, chunk, { parse_mode: 'Markdown', ...extra })
+                  } catch {
+                    // Fallback: send without parse_mode if Markdown is malformed
+                    await telegram.sendMessage(item.chatId, chunk, Object.keys(extra).length > 0 ? extra : undefined)
+                  }
+                })
               }
 
               await chain

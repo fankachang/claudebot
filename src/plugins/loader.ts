@@ -3,8 +3,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { Plugin } from '../types/plugin.js'
+import type { Plugin, OutputMetadata, OutputHookResult } from '../types/plugin.js'
 import type { BotContext } from '../types/context.js'
+import { startServices, stopServices, resetServiceState } from './service-manager.js'
+import { registerPluginRoutes } from '../dashboard/plugin-routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -14,6 +16,7 @@ const __dirname = dirname(__filename)
 let pluginRegistry = new Map<string, (ctx: BotContext) => Promise<void>>()
 let messageHandlers: ReadonlyArray<(ctx: BotContext) => Promise<boolean>> = []
 let callbackHandlers: ReadonlyArray<(ctx: BotContext, data: string) => Promise<boolean>> = []
+let outputHandlers: ReadonlyArray<(text: string, meta: OutputMetadata) => Promise<OutputHookResult>> = []
 let loadedPlugins: readonly Plugin[] = []
 let reloading = false
 
@@ -99,6 +102,26 @@ export async function dispatchPluginCallback(ctx: BotContext, data: string): Pro
   return false
 }
 
+export async function dispatchOutputHooks(
+  text: string,
+  meta: OutputMetadata,
+): Promise<{ text: string; warnings: readonly string[] }> {
+  let current = text
+  const allWarnings: string[] = []
+  for (const handler of outputHandlers) {
+    try {
+      const result = await handler(current, meta)
+      if (result.modified) {
+        current = result.text
+        if (result.warnings) allWarnings.push(...result.warnings)
+      }
+    } catch (err) {
+      console.error('[plugins] Output hook error:', err)
+    }
+  }
+  return { text: current, warnings: allWarnings }
+}
+
 // --- Internal: import a plugin with cache busting ---
 
 interface ImportResult {
@@ -141,6 +164,7 @@ function buildRegistry(plugins: readonly Plugin[]): void {
   const newRegistry = new Map<string, (ctx: BotContext) => Promise<void>>()
   const newMessageHandlers: Array<(ctx: BotContext) => Promise<boolean>> = []
   const newCallbackHandlers: Array<(ctx: BotContext, data: string) => Promise<boolean>> = []
+  const newOutputHandlers: Array<(text: string, meta: OutputMetadata) => Promise<OutputHookResult>> = []
 
   for (const plugin of plugins) {
     for (const cmd of plugin.commands) {
@@ -155,11 +179,15 @@ function buildRegistry(plugins: readonly Plugin[]): void {
     if (plugin.onCallback) {
       newCallbackHandlers.push(plugin.onCallback)
     }
+    if (plugin.onOutput) {
+      newOutputHandlers.push(plugin.onOutput)
+    }
   }
 
   pluginRegistry = newRegistry
   messageHandlers = newMessageHandlers
   callbackHandlers = newCallbackHandlers
+  outputHandlers = newOutputHandlers
 }
 
 // --- Internal: shared load logic ---
@@ -191,6 +219,8 @@ async function importAndBuild(
   loadedPlugins = results
   pluginModules = modules
   buildRegistry(results)
+  registerPluginRoutes(results)
+  await startServices(results)
   return loadedPlugins
 }
 
@@ -209,6 +239,10 @@ export async function reloadPlugins(pluginNames: readonly string[]): Promise<rea
   reloading = true
 
   try {
+    // Stop running services before cleanup
+    await stopServices()
+    resetServiceState()
+
     // Cleanup old plugins
     for (const plugin of loadedPlugins) {
       if (plugin.cleanup) {
