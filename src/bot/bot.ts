@@ -44,6 +44,7 @@ import {
   loadPlugins,
   getPluginModule,
   discoverAllPluginCommandNames,
+  isPluginCommand,
   dispatchPluginCommand,
   dispatchPluginMessage,
   dispatchPluginCallback,
@@ -80,6 +81,7 @@ export const CORE_COMMANDS = [
   { command: 'reload', description: '熱重載插件' },
   { command: 'asr', description: '純語音轉文字' },
   { command: 'context', description: '上下文管理與釘選' },
+  { command: 'restart', description: '重啟 Bot' },
   { command: 'help', description: '顯示說明' },
 ] as const
 
@@ -168,8 +170,17 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   wireReminderSendFn(bot)
   wireSchedulerSendFn(bot)
 
-  // Plugin message interceptor — always registered (dispatcher checks dynamically)
+  // Plugin interceptor — dynamic command dispatch + message handlers
+  // Catches plugin commands installed after startup (e.g., via /install)
   bot.on('text', async (ctx, next) => {
+    const text = ctx.message?.text ?? ''
+    if (text.startsWith('/')) {
+      const cmdName = text.slice(1).split(/[@\s]/)[0]
+      if (cmdName && isPluginCommand(cmdName)) {
+        await dispatchPluginCommand(cmdName, ctx)
+        return
+      }
+    }
     const handled = await dispatchPluginMessage(ctx)
     if (handled) return
     return next()

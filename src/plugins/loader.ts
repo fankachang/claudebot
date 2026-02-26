@@ -43,8 +43,11 @@ export async function discoverAllPluginCommandNames(): Promise<readonly string[]
     const entries = readdirSync(pluginsDir, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
-      const indexPath = join(pluginsDir, entry.name, 'index.js')
-      if (!existsSync(indexPath)) continue
+      // Check for both .js and .ts (tsx resolves .js → .ts at runtime)
+      const jsPath = join(pluginsDir, entry.name, 'index.js')
+      const tsPath = join(pluginsDir, entry.name, 'index.ts')
+      if (!existsSync(jsPath) && !existsSync(tsPath)) continue
+      const indexPath = jsPath  // tsx resolves .js → .ts automatically
 
       try {
         const mod = await import(pathToFileURL(indexPath).href)
@@ -66,6 +69,10 @@ export async function discoverAllPluginCommandNames(): Promise<readonly string[]
 }
 
 // --- Dispatch functions (called by bot.ts handlers) ---
+
+export function isPluginCommand(name: string): boolean {
+  return pluginRegistry.has(name)
+}
 
 export async function dispatchPluginCommand(name: string, ctx: BotContext): Promise<void> {
   const handler = pluginRegistry.get(name)
