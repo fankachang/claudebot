@@ -37,7 +37,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="assets/css/styles.css">
-  <link rel="stylesheet" href="assets/css/guide.css">
+  <link rel="stylesheet" href="assets/css/guide.css?v=2">
   <link rel="icon" type="image/png" href="assets/images/logo.png">
 </head>
 <body class="bg-white text-slate-700 font-body antialiased">
@@ -1123,9 +1123,11 @@ DASHBOARD_TOKEN=your_secret_token</code></pre>
       })
     }
 
-    // ── Init: show chapter from hash or default to ch1 ──
-    var initHash = window.location.hash.slice(1)
-    navigateTo((initHash && document.getElementById(initHash)) ? initHash : 'ch1')
+    // ── Init: wait for i18n translations before populating TOC ──
+    document.addEventListener('DOMContentLoaded', function() {
+      var initHash = window.location.hash.slice(1)
+      navigateTo((initHash && document.getElementById(initHash)) ? initHash : 'ch1')
+    })
   </script>
 </body>
 </html>
