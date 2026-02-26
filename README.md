@@ -85,6 +85,21 @@ Full setup guide, plugin development, multi-bot architecture, voice recognition,
 
 **[jeffrey0117.github.io/ClaudeBot](https://jeffrey0117.github.io/ClaudeBot/)**
 
+---
+
+## Part of a Bigger Picture
+
+ClaudeBot is one piece of a developer toolkit that covers your entire workflow — from setting up a new machine to shipping to production:
+
+| Tool | What It Does | Repo |
+|------|-------------|------|
+| [**DevUp**](https://github.com/Jeffrey0117/DevUp) | New machine? One command rebuilds your entire workspace | `npx devup-cli` |
+| [**ZeroSetup**](https://github.com/Jeffrey0117/ZeroSetup) | Any GitHub project, double-click to run. Zero setup steps | `npx zerosetup` |
+| **ClaudeBot** | Write and edit code from your phone via AI | *you are here* |
+| [**CloudPipe**](https://github.com/Jeffrey0117/CloudPipe) | Self-hosted Vercel. Auto-deploys, Telegram control, 31+ MCP tools | `npm i -g @jeffrey0117/cloudpipe` |
+
+**ClaudeBot + CloudPipe** = you write code from Telegram, CloudPipe auto-deploys it, and notifies you when it's live. Idea to production without opening a laptop.
+
 ## License
 
 MIT

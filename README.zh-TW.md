@@ -85,6 +85,21 @@ npx zerosetup
 
 **[jeffrey0117.github.io/ClaudeBot](https://jeffrey0117.github.io/ClaudeBot/)**
 
+---
+
+## 生態系
+
+ClaudeBot 是一個開發者工具鏈的一部分，從新電腦到上線，每一步都零摩擦：
+
+| 工具 | 做什麼 | Repo |
+|------|--------|------|
+| [**DevUp**](https://github.com/Jeffrey0117/DevUp) | 新電腦？一個指令重建你的整個工作環境 | `npx devup-cli` |
+| [**ZeroSetup**](https://github.com/Jeffrey0117/ZeroSetup) | 任何 GitHub 專案，雙擊就跑 | `npx zerosetup` |
+| **ClaudeBot** | 在手機上用 AI 寫程式、改程式碼 | *你在這裡* |
+| [**CloudPipe**](https://github.com/Jeffrey0117/CloudPipe) | 自架 Vercel。Git push 自動部署，Telegram 管理，31+ MCP 工具 | `npm i -g @jeffrey0117/cloudpipe` |
+
+**ClaudeBot + CloudPipe** = 你在 Telegram 寫程式，CloudPipe 自動部署，上線了通知你。從靈感到上線，不用打開筆電。
+
 ## 授權
 
 MIT
