@@ -56,25 +56,32 @@ Telegram ──> ClaudeBot ──> Claude / Gemini / Codex
 - **插件**擴充 bot — 不經過 AI 的即時指令（`/screenshot`、`/sysinfo`、`/cost`、`/remind`）
 - **專案**擴充 Claude — 每個 repo 是一個完整的工作空間，帶有上下文和 session 記錄
 
+## 系統需求
+
+| 需求 | 版本 | 說明 |
+|------|------|------|
+| **Node.js** | 20+ | [下載](https://nodejs.org/) |
+| **Claude CLI** | 最新版 | `npm i -g @anthropic-ai/claude-code` 然後 `claude` 登入 |
+| **Git** | 任何版本 | 用於 clone 和版本控制 |
+
+### 選裝（特定功能需要）
+
+| 工具 | 功能 | 安裝方式 |
+|------|------|----------|
+| **Gemini CLI** | 多 AI 後端 | `npm i -g @google/gemini-cli` 然後 `gemini` 登入 |
+| **ffmpeg** | 語音辨識 | [下載](https://ffmpeg.org/download.html) |
+| **Python 3.11+** | 語音標點修正 (biaodian) | [下載](https://www.python.org/) |
+
 ## 快速開始
 
-### 前置條件
+### 一鍵安裝（Windows）
 
-- **Node.js** >= 18（[下載](https://nodejs.org/)）
-- **Claude CLI** 已安裝並登入：
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  claude    # 照著登入提示完成認證
-  ```
-- **Gemini CLI**（選裝 — 啟用 Gemini 後端）：
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  gemini    # 登入你的 Google 帳號
-  ```
+```bash
+# 自動安裝 Node.js、ffmpeg 和 npm 依賴
+npx zerosetup
+```
 
-> ClaudeBot 是透過呼叫你電腦上的 CLI 工具運作 — 不需要 API key。裝好 CLI 登入就行。
-
-### 安裝
+### 手動安裝
 
 ```bash
 git clone https://github.com/Jeffrey0117/ClaudeBot.git
@@ -83,6 +90,8 @@ npm install
 npm run setup    # 互動式引導 — 自動建立 .env
 npm run dev
 ```
+
+> ClaudeBot 是透過呼叫你電腦上的 CLI 工具運作 — 不需要 API key。裝好 CLI 登入就行。
 
 就這樣！Setup wizard 會引導你完成：
 1. 在 [@BotFather](https://t.me/BotFather) 建立 Telegram bot

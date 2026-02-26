@@ -48,7 +48,7 @@ async function refineWithLLM(rawText: string): Promise<string | null> {
     return null
   }
 }
-const BIAODIAN_PATH = join(process.cwd(), '..', 'biaodian', 'biaodian.py')
+const BIAODIAN_PATH = env.BIAODIAN_PATH || join(process.cwd(), '..', 'biaodian', 'biaodian.py')
 
 /**
  * Add punctuation using the biaodian rule-based tool.

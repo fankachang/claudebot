@@ -56,25 +56,32 @@ Telegram ──> ClaudeBot ──> Claude / Gemini / Codex
 - **Plugins** extend the bot — instant commands without AI (`/screenshot`, `/sysinfo`, `/cost`, `/remind`)
 - **Projects** extend Claude — each repo is a workspace with full context and session history
 
+## System Requirements
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| **Node.js** | 20+ | [download](https://nodejs.org/) |
+| **Claude CLI** | latest | `npm i -g @anthropic-ai/claude-code` then `claude` to login |
+| **Git** | any | For cloning and version control |
+
+### Optional (for specific features)
+
+| Tool | Feature | Install |
+|------|---------|---------|
+| **Gemini CLI** | Multi-AI backend | `npm i -g @google/gemini-cli` then `gemini` to login |
+| **ffmpeg** | Voice recognition | [download](https://ffmpeg.org/download.html) |
+| **Python 3.11+** | Voice punctuation (biaodian) | [download](https://www.python.org/) |
+
 ## Quick Start
 
-### Prerequisites
+### One-line setup (Windows)
 
-- **Node.js** >= 18 ([download](https://nodejs.org/))
-- **Claude CLI** installed and logged in:
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  claude    # follow the login prompts
-  ```
-- **Gemini CLI** (optional — enables Gemini backend):
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  gemini    # login to your Google account
-  ```
+```bash
+# Auto-installs Node.js, ffmpeg, and npm dependencies
+npx zerosetup
+```
 
-> ClaudeBot works by calling CLI tools on your machine — no API keys needed. Just install the CLI and log in.
-
-### Setup
+### Manual setup
 
 ```bash
 git clone https://github.com/Jeffrey0117/ClaudeBot.git
@@ -83,6 +90,8 @@ npm install
 npm run setup    # interactive wizard — creates .env for you
 npm run dev
 ```
+
+> ClaudeBot works by calling CLI tools on your machine — no API keys needed. Just install the CLI and log in.
 
 That's it. The setup wizard walks you through:
 1. Creating a Telegram bot via [@BotFather](https://t.me/BotFather)

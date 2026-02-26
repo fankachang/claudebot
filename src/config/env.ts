@@ -65,6 +65,7 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((val) => val === 'true'),
+  BIAODIAN_PATH: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>

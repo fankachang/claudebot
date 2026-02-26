@@ -210,6 +210,9 @@ async function main(): Promise<void> {
   console.log('')
   console.log('  Add more bots later with /newbot <token> from Telegram')
   console.log('')
+  console.log('  Tip: Windows users can auto-install Node.js, ffmpeg, and')
+  console.log('  dependencies in one step with: npx zerosetup')
+  console.log('')
 
   rl.close()
 }

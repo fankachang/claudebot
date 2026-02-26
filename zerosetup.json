@@ -1,0 +1,19 @@
+{
+  "name": "ClaudeBot",
+  "description": "Telegram bot that wraps Claude Code CLI into a mobile command center",
+  "requirements": {
+    "node": ">=20.0.0",
+    "tools": [
+      {
+        "name": "ffmpeg",
+        "optional": true,
+        "description": "Required for voice recognition"
+      }
+    ]
+  },
+  "setup": {
+    "install": "npm install",
+    "postInstall": "npm run setup",
+    "start": "npm run dev"
+  }
+}
