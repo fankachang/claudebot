@@ -11,6 +11,7 @@ import { getAISessionId } from '../../ai/session-store.js'
 import { Markup } from 'telegraf'
 import type { AIModelSelection } from '../../types/index.js'
 import { formatAILabel, resolveBackend } from '../../ai/types.js'
+import { getThreadId } from '../../utils/callback-helpers.js'
 
 export async function callbackHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -51,8 +52,7 @@ async function handleProjectSelect(ctx: BotContext, chatId: number, name: string
     return
   }
 
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
 
   try {
     validateProjectPath(project.path)
@@ -84,8 +84,7 @@ async function handleAISelect(ctx: BotContext, chatId: number, payload: string):
   const [backend, model] = parts
   const ai: AIModelSelection = { backend: backend as AIModelSelection['backend'], model }
 
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   setUserAI(chatId, ai, threadId)
 
   await ctx.editMessageText(`\u{2705} \u{5DF2}\u{5207}\u{63DB}\u{70BA} *${formatAILabel(ai)}*`, { parse_mode: 'Markdown' })
@@ -99,8 +98,7 @@ async function handleAISelect(ctx: BotContext, chatId: number, payload: string):
 }
 
 async function handleBookmarkAdd(ctx: BotContext, chatId: number): Promise<void> {
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   const state = getUserState(chatId, threadId)
 
   if (!state.selectedProject) {
@@ -132,8 +130,7 @@ async function handleBookmarkAdd(ctx: BotContext, chatId: number): Promise<void>
 async function handleConfirm(ctx: BotContext, chatId: number, data: string): Promise<void> {
   const answer = data === 'confirm:yes' ? '是，請繼續' : '不用了'
 
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   const state = getUserState(chatId, threadId)
 
   // Remove buttons
@@ -160,8 +157,7 @@ async function handleConfirm(ctx: BotContext, chatId: number, data: string): Pro
 async function handleChoice(ctx: BotContext, chatId: number, data: string): Promise<void> {
   const index = parseInt(data.slice('choice:'.length), 10)
 
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   const state = getUserState(chatId, threadId)
 
   if (!state.selectedProject) {
@@ -195,8 +191,7 @@ async function handleChoice(ctx: BotContext, chatId: number, data: string): Prom
 async function handleSuggestion(ctx: BotContext, chatId: number, data: string): Promise<void> {
   const index = parseInt(data.slice('suggest:'.length), 10)
 
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   const state = getUserState(chatId, threadId)
 
   if (!state.selectedProject) {
@@ -261,8 +256,7 @@ async function handleBookmarkRemove(ctx: BotContext, chatId: number, slot: numbe
 }
 
 async function handleResume(ctx: BotContext, chatId: number, data: string): Promise<void> {
-  const msg = ctx.callbackQuery?.message
-  const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
+  const threadId = getThreadId(ctx)
   const state = getUserState(chatId, threadId)
 
   if (data === 'resume:yes') {

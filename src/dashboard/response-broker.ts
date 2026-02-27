@@ -110,9 +110,11 @@ async function pollEvents(): Promise<void> {
       }
     }
 
-    // Clean up stale entries from seenEvents map
-    if (seenEvents.size > 500) {
-      seenEvents.clear()
+    // Evict oldest entries when map grows too large (LRU-style)
+    while (seenEvents.size > 500) {
+      const oldest = seenEvents.keys().next().value
+      if (oldest !== undefined) seenEvents.delete(oldest)
+      else break
     }
   } catch {
     // directory might not exist yet

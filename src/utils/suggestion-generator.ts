@@ -39,10 +39,12 @@ export async function generateSuggestions(
   const prompt = `專案: ${projectName}\n\nClaude 的回應:\n---\n${truncated}\n---\n\n建議下一步 (JSON 陣列):`
 
   return new Promise<readonly string[]>((resolve) => {
-    const timeout = setTimeout(() => {
-      proc.kill()
-      resolve([])
-    }, 8_000)
+    let done = false
+    const finish = (result: readonly string[]) => {
+      if (done) return
+      done = true
+      resolve(result)
+    }
 
     const args = [
       ...cli.prefix,
@@ -59,6 +61,11 @@ export async function generateSuggestions(
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
+
+    const timeout = setTimeout(() => {
+      try { proc.kill() } catch { /* ignore */ }
+      finish([])
+    }, 8_000)
 
     let buffer = ''
     let resultText = ''
@@ -91,25 +98,25 @@ export async function generateSuggestions(
       try {
         // Extract JSON array from response (may have surrounding text)
         const match = resultText.match(/\[[\s\S]*?\]/)
-        if (!match) { resolve([]); return }
+        if (!match) { finish([]); return }
 
         const parsed = JSON.parse(match[0])
-        if (!Array.isArray(parsed)) { resolve([]); return }
+        if (!Array.isArray(parsed)) { finish([]); return }
 
         const suggestions = parsed
           .filter((s): s is string => typeof s === 'string' && s.length > 0)
           .slice(0, 3)
           .map((s) => s.slice(0, 50))
 
-        resolve(suggestions)
+        finish(suggestions)
       } catch {
-        resolve([])
+        finish([])
       }
     })
 
     proc.on('error', () => {
       clearTimeout(timeout)
-      resolve([])
+      finish([])
     })
   })
 }

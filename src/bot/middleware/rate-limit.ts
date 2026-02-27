@@ -7,6 +7,16 @@ interface RateLimitEntry {
 
 const limits = new Map<number, RateLimitEntry>()
 
+// Periodic cleanup: remove entries with no recent activity
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60_000
+  for (const [chatId, entry] of limits) {
+    if (entry.timestamps.length === 0 || entry.timestamps[entry.timestamps.length - 1] < cutoff) {
+      limits.delete(chatId)
+    }
+  }
+}, 60_000)
+
 export function rateLimitMiddleware() {
   return async (ctx: BotContext, next: () => Promise<void>) => {
     const chatId = ctx.chat?.id

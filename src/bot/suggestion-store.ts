@@ -40,3 +40,12 @@ export function getSuggestion(
 export function clearSuggestions(chatId: number, projectPath: string): void {
   store.delete(key(chatId, projectPath))
 }
+
+// Periodic cleanup of expired entries
+const EXPIRY_MS = 10 * 60_000
+setInterval(() => {
+  const now = Date.now()
+  for (const [k, entry] of store) {
+    if (now - entry.timestamp > EXPIRY_MS) store.delete(k)
+  }
+}, 60_000)
