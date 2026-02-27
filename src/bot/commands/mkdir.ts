@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { BotContext } from '../../types/context.js'
-import { getBaseDirs } from '../../config/projects.js'
+import { getBaseDirs, invalidateProjectCache } from '../../config/projects.js'
 
 const VALID_NAME = /^[a-zA-Z0-9_\-\u4e00-\u9fff]+$/
 
@@ -42,6 +42,7 @@ export async function mkdirCommand(ctx: BotContext): Promise<void> {
 
   try {
     await mkdir(projectPath, { recursive: false })
+    invalidateProjectCache()
     await ctx.reply(`✅ 已建立專案: \`${name}\`\n用 /projects 選擇它`, { parse_mode: 'Markdown' })
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {

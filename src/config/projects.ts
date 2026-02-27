@@ -7,7 +7,16 @@ export function getBaseDirs(): readonly string[] {
   return env.PROJECTS_BASE_DIR.map((d) => resolve(d))
 }
 
+const SCAN_TTL_MS = 5_000
+let scanCache: readonly ProjectInfo[] | null = null
+let scanCacheTime = 0
+
 export function scanProjects(): readonly ProjectInfo[] {
+  const now = Date.now()
+  if (scanCache && now - scanCacheTime < SCAN_TTL_MS) {
+    return scanCache
+  }
+
   const results: ProjectInfo[] = []
 
   for (const baseDir of getBaseDirs()) {
@@ -30,7 +39,15 @@ export function scanProjects(): readonly ProjectInfo[] {
     }
   }
 
+  scanCache = results
+  scanCacheTime = now
   return results
+}
+
+/** Force cache invalidation (e.g. after mkdir) */
+export function invalidateProjectCache(): void {
+  scanCache = null
+  scanCacheTime = 0
 }
 
 export function findProject(query: string): ProjectInfo | null {

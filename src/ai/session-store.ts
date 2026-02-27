@@ -23,13 +23,19 @@ function loadSessions(): Map<string, string> {
   }
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
 function saveSessions(): void {
-  try {
-    const obj = Object.fromEntries(sessions)
-    writeFileSync(SESSION_FILE, JSON.stringify(obj, null, 2))
-  } catch (err) {
-    console.error('[ai-session-store] failed to save:', err)
-  }
+  if (saveTimer) return
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    try {
+      const obj = Object.fromEntries(sessions)
+      writeFileSync(SESSION_FILE, JSON.stringify(obj, null, 2))
+    } catch (err) {
+      console.error('[ai-session-store] failed to save:', err)
+    }
+  }, 100)
 }
 
 const sessions = loadSessions()
