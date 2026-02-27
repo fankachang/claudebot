@@ -1,12 +1,19 @@
 /* ===== Guide Page Layout ===== */
 
+/* Centered layout — sidebar + content stay within --layout-max */
+:root {
+  --layout-max: 1280px;
+  --sidebar-w: 260px;
+  --layout-inset: max(0px, calc((100vw - var(--layout-max)) / 2));
+}
+
 /* Sidebar */
 .guide-sidebar {
   position: fixed;
   top: 0;
-  left: 2rem;
+  left: var(--layout-inset);
   bottom: 0;
-  width: 260px;
+  width: var(--sidebar-w);
   background: #ffffff;
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -67,7 +74,8 @@
 
 /* Content Area */
 .guide-content {
-  margin-left: calc(260px + 2rem);
+  margin-left: calc(var(--sidebar-w) + var(--layout-inset));
+  margin-right: var(--layout-inset);
   min-height: 100vh;
   padding-left: 2rem;
 }
