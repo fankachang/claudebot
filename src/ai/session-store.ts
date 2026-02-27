@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AIBackend } from './types.js'
 import { env } from '../config/env.js'
@@ -30,8 +30,10 @@ function saveSessions(): void {
   saveTimer = setTimeout(() => {
     saveTimer = null
     try {
+      const tmp = `${SESSION_FILE}.tmp`
       const obj = Object.fromEntries(sessions)
-      writeFileSync(SESSION_FILE, JSON.stringify(obj, null, 2))
+      writeFileSync(tmp, JSON.stringify(obj, null, 2))
+      renameSync(tmp, SESSION_FILE)
     } catch (err) {
       console.error('[ai-session-store] failed to save:', err)
     }

@@ -11,7 +11,18 @@ import { recordActivity } from '../../plugins/stats/activity-logger.js'
 import type { ProjectInfo } from '../../types/index.js'
 
 const COLLECT_MS = 1000
-const pendingMessages = new Map<number, { texts: string[]; replyQuote: string; timer: ReturnType<typeof setTimeout> }>()
+const pendingMessages = new Map<number, { texts: string[]; replyQuote: string; timer: ReturnType<typeof setTimeout>; createdAt: number }>()
+
+// Periodic cleanup: flush stale pending batches (e.g. user abandoned chat)
+setInterval(() => {
+  const cutoff = Date.now() - 30_000
+  for (const [chatId, pending] of pendingMessages) {
+    if (pending.createdAt < cutoff) {
+      clearTimeout(pending.timer)
+      pendingMessages.delete(chatId)
+    }
+  }
+}, 30_000)
 
 function extractMentionText(ctx: BotContext, rawText: string): string | null {
   const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
@@ -155,6 +166,7 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
     texts: [text],
     replyQuote,
     timer: setTimeout(() => flushMessages(chatId, threadId), COLLECT_MS),
+    createdAt: Date.now(),
   }
   pendingMessages.set(chatId, pending)
 

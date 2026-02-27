@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ProjectInfo, AIModelSelection } from '../types/index.js'
 import { env } from '../config/env.js'
@@ -51,7 +51,9 @@ function saveStates(): void {
   }
 
   try {
-    writeFileSync(STATE_FILE, JSON.stringify(all, null, 2))
+    const tmp = `${STATE_FILE}.tmp`
+    writeFileSync(tmp, JSON.stringify(all, null, 2))
+    renameSync(tmp, STATE_FILE)
   } catch (err) {
     console.error('[state] failed to save:', err)
   }

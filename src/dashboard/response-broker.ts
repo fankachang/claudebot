@@ -1,4 +1,4 @@
-import { writeFile, readFile, unlink, readdir, mkdir } from 'node:fs/promises'
+import { writeFile, readFile, unlink, readdir, mkdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const RESPONSE_DIR = join(process.cwd(), 'data', 'responses')
@@ -51,7 +51,7 @@ async function writeEvent(event: ResponseEvent): Promise<void> {
 
 export function emitResponseChunk(commandId: string, delta: string, accumulated: string): void {
   const event: ResponseChunkEvent = { type: 'response_chunk', commandId, delta, accumulated }
-  writeEvent(event)
+  writeEvent(event).catch((err) => console.error('[response-broker] chunk write failed:', err))
 }
 
 export function emitResponseComplete(
@@ -62,12 +62,12 @@ export function emitResponseComplete(
   duration: number,
 ): void {
   const event: ResponseCompleteEvent = { type: 'response_complete', commandId, text, botId, cost, duration }
-  writeEvent(event)
+  writeEvent(event).catch((err) => console.error('[response-broker] complete write failed:', err))
 }
 
 export function emitResponseError(commandId: string, error: string): void {
   const event: ResponseErrorEvent = { type: 'response_error', commandId, error }
-  writeEvent(event)
+  writeEvent(event).catch((err) => console.error('[response-broker] error write failed:', err))
 }
 
 // --- Reader side (called from dashboard server process) ---
@@ -115,6 +115,18 @@ async function pollEvents(): Promise<void> {
       const oldest = seenEvents.keys().next().value
       if (oldest !== undefined) seenEvents.delete(oldest)
       else break
+    }
+
+    // Clean up stale chunk files older than STALE_MS
+    const now = Date.now()
+    for (const file of jsonFiles) {
+      try {
+        const filePath = join(RESPONSE_DIR, file)
+        const fileStat = await stat(filePath)
+        if (now - fileStat.mtimeMs > STALE_MS) {
+          await unlink(filePath).catch(() => {})
+        }
+      } catch { /* ignore */ }
     }
   } catch {
     // directory might not exist yet

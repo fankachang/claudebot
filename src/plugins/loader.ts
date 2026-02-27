@@ -88,16 +88,24 @@ export async function dispatchPluginCommand(name: string, ctx: BotContext): Prom
 
 export async function dispatchPluginMessage(ctx: BotContext): Promise<boolean> {
   for (const handler of messageHandlers) {
-    const handled = await handler(ctx)
-    if (handled) return true
+    try {
+      const handled = await handler(ctx)
+      if (handled) return true
+    } catch (err) {
+      console.error('[plugins] Message handler error:', err)
+    }
   }
   return false
 }
 
 export async function dispatchPluginCallback(ctx: BotContext, data: string): Promise<boolean> {
   for (const handler of callbackHandlers) {
-    const handled = await handler(ctx, data)
-    if (handled) return true
+    try {
+      const handled = await handler(ctx, data)
+      if (handled) return true
+    } catch (err) {
+      console.error('[plugins] Callback handler error:', err)
+    }
   }
   return false
 }
