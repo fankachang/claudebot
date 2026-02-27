@@ -38,15 +38,23 @@ const REFINE_PROMPT = [
 async function refineWithLLM(rawText: string): Promise<string | null> {
   try {
     const prompt = `${REFINE_PROMPT}\n\n原始文字：${rawText}`
-    const { stdout } = await execFileAsync('gemini', [
+    const { stdout, stderr } = await execFileAsync('gemini', [
       '-p', prompt,
     ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true })
+    if (stderr) console.error('[voice] gemini stderr:', stderr.slice(0, 200))
     // Strip Gemini CLI preamble lines (e.g. "Loaded cached credentials.")
     const lines = stdout.split('\n').filter(
       (l) => l.trim() && !l.includes('credentials') && !l.includes('Hook registry'),
     )
     const refined = lines.join('\n').trim()
-    if (!refined || refined.length > rawText.length * 3) return null
+    if (!refined) {
+      console.error('[voice] gemini returned empty after filtering')
+      return null
+    }
+    if (refined.length > rawText.length * 3) {
+      console.error(`[voice] gemini output too long: ${refined.length} vs raw ${rawText.length}`)
+      return null
+    }
     return refined
   } catch (err) {
     console.error('[voice] gemini FAIL:', err)
@@ -154,11 +162,14 @@ export async function transcribeVoiceFile(
 
     // Graceful degradation: skip Gemini when overloaded, use fast punctuation
     if (options?.skipGemini) {
+      console.error('[voice] skipping Gemini (overloaded), using biaodian')
       const punctuated = await addPunctuation(rawText)
       return { text: punctuated }
     }
 
+    console.error('[voice] calling Gemini for refinement...')
     const refined = await refineWithLLM(rawText)
+    console.error(`[voice] Gemini result: ${refined ? 'OK' : 'FAILED, using raw text'}`)
     return { text: refined ?? rawText }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
