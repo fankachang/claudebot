@@ -38,7 +38,6 @@ async function refineWithLLM(rawText: string): Promise<string | null> {
   try {
     const prompt = `${REFINE_PROMPT}\n\n原始文字：${rawText}`
     const { stdout } = await execFileAsync('gemini', [
-      '-m', 'gemini-2.5-flash-lite-preview-06-17',
       '-p', prompt,
     ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true })
     const refined = stdout.trim()
