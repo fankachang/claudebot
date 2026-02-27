@@ -196,6 +196,8 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
   const threadId = message.message_thread_id
   const asrMode = getAsrMode(chatId)
 
+  console.error(`[voice] handler entered: chatId=${chatId}, asrMode=${asrMode}`)
+
   if (!hasProjectOrAsrMode(chatId, threadId, asrMode)) {
     await ctx.reply('用 /projects 選擇專案，或 /chat 進入通用對話模式。')
     return
