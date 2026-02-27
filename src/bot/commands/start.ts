@@ -23,11 +23,14 @@ const WELCOME_NEW = `
 \u{1F916} *ClaudeBot*
 _\u{624B}\u{6A5F}\u{9059}\u{63A7} Claude Code CLI_
 
-\u{7528}\u{624B}\u{6A5F}\u{63A7}\u{5236} Claude Code\u{3002}
-\u{50B3}\u{9001}\u{63D0}\u{793A}\u{3001}\u{5373}\u{6642}\u{4E32}\u{6D41}\u{56DE}\u{61C9}\u{3001}\u{7BA1}\u{7406}\u{591A}\u{500B}\u{5C08}\u{6848}\u{3002}
+📱 手機傳訊息，遠端控制 Claude Code
+🎙️ 語音輸入，說話就能寫程式
+🔌 插件系統，零 AI 成本擴充功能
+📂 多專案切換，一個 bot 管所有 repo
 
 \u{1F512} /login \`<\u{5BC6}\u{78BC}>\` \u{958B}\u{59CB}\u{4F7F}\u{7528}
 _(\u{8A0A}\u{606F}\u{6703}\u{81EA}\u{52D5}\u{522A}\u{9664})_
+📖 文檔：jeffrey0117.github.io/ClaudeBot
 `.trim()
 
 export async function startCommand(ctx: BotContext): Promise<void> {

@@ -279,7 +279,11 @@ export function runClaude(options: RunOptions): void {
     activeProcesses.delete(validatedPath)
     // Don't report errors if cancelled (expected) or already got result
     if (active.cancelled || resultReceived) return
-    onError(`Failed to spawn Claude: ${error.message}`)
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      onError('Claude CLI 未安裝。請先安裝：npm install -g @anthropic-ai/claude-code')
+    } else {
+      onError(`Claude CLI 啟動失敗: ${error.message}`)
+    }
   })
 }
 

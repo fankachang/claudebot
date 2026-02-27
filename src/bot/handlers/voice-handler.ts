@@ -152,7 +152,10 @@ export async function transcribeVoiceFile(
 }
 
 export async function voiceHandler(ctx: BotContext): Promise<void> {
-  if (!isSherpaAvailable()) return
+  if (!isSherpaAvailable()) {
+    await ctx.reply('🎙️ 語音辨識未啟用。\n需要安裝 Sherpa ASR：github.com/Jeffrey0117/Sherpa_ASR')
+    return
+  }
 
   const chatId = ctx.chat?.id
   if (!chatId) return

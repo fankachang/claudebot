@@ -45,6 +45,6 @@ export async function helpCommand(ctx: BotContext): Promise<void> {
     pluginSection = `\n\n\u{2500}\u{2500}\u{2500} *插件* \u{2500}\u{2500}\u{2500}\n${lines.join('\n')}`
   }
 
-  const text = `${CORE_HELP}${pluginSection}\n\n${FEATURES_HELP}`
+  const text = `${CORE_HELP}${pluginSection}\n\n${FEATURES_HELP}\n\n📖 完整文檔：jeffrey0117.github.io/ClaudeBot`
   await ctx.reply(text, { parse_mode: 'Markdown' })
 }
