@@ -81,6 +81,16 @@ async function addPunctuation(text: string): Promise<string> {
   }
 }
 
+/**
+ * Break long ASR text into paragraphs for readability.
+ * Inserts line breaks after sentence-ending punctuation (。！？；).
+ */
+function formatAsrText(text: string): string {
+  return text.replace(/([。！？；])\s*/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 const TEMP_DIR = join(tmpdir(), 'claudebot-voice')
 
 async function ensureTempDir(): Promise<void> {
@@ -249,8 +259,9 @@ async function processAsrOnly(
   }
 
   const punctuated = await addPunctuation(result.text)
+  const formatted = formatAsrText(punctuated)
   await telegram.sendMessage(chatId,
-    `📝 辨識結果：\n\`\`\`\n${punctuated}\n\`\`\`\n💡 _點擊上方文字可複製_`,
+    `📝 辨識結果：\n\`\`\`\n${formatted}\n\`\`\`\n💡 _點擊上方文字可複製_`,
     { parse_mode: 'Markdown' },
   )
 }
@@ -281,8 +292,9 @@ async function processVoiceInBackground(
     return
   }
 
-  // Show transcribed text to user
-  telegram.sendMessage(chatId, `🗣 ${result.text}`).catch(() => {})
+  // Show transcribed text to user (break into paragraphs at sentence endings)
+  const formatted = formatAsrText(result.text)
+  telegram.sendMessage(chatId, `🗣 ${formatted}`).catch(() => {})
 
   // Resolve the buffer entry — OMB will auto-flush consecutive ready entries
   resolveVoice(result.text)
