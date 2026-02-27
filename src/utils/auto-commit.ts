@@ -44,12 +44,10 @@ function hasRemote(cwd: string): boolean {
   }
 }
 
-function buildCommitMessage(userPrompt: string): string {
-  const oneLine = userPrompt.replace(/\n/g, ' ').trim()
-  const truncated = oneLine.length > 72
-    ? oneLine.slice(0, 69) + '...'
-    : oneLine
-  return `bot: ${truncated}`
+function buildCommitMessage(_userPrompt: string): string {
+  const now = new Date()
+  const ts = now.toISOString().slice(0, 16).replace('T', ' ')
+  return `bot: auto-sync ${ts}`
 }
 
 export function autoCommitAndPush(
