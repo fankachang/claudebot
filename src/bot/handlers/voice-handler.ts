@@ -35,30 +35,34 @@ const REFINE_PROMPT = [
  * Use Gemini CLI (flash-lite, fastest & free) to refine ASR output.
  * Returns corrected text, or null on failure (caller falls back to raw).
  */
-async function refineWithLLM(rawText: string): Promise<string | null> {
+interface RefineResult {
+  readonly result: string | null
+  readonly debug: string
+}
+
+async function refineWithLLM(rawText: string): Promise<RefineResult> {
   try {
     const prompt = `${REFINE_PROMPT}\n\n原始文字：${rawText}`
     const { stdout, stderr } = await execFileAsync('gemini', [
       '-p', prompt,
     ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true })
-    if (stderr) console.error('[voice] gemini stderr:', stderr.slice(0, 200))
+    const debugParts = [`stdout=${stdout.length}c`, `stderr=${stderr.length}c`]
     // Strip Gemini CLI preamble lines (e.g. "Loaded cached credentials.")
     const lines = stdout.split('\n').filter(
       (l) => l.trim() && !l.includes('credentials') && !l.includes('Hook registry'),
     )
     const refined = lines.join('\n').trim()
+    debugParts.push(`filtered=${refined.length}c`)
     if (!refined) {
-      console.error('[voice] gemini returned empty after filtering')
-      return null
+      return { result: null, debug: `empty after filter. ${debugParts.join(',')}` }
     }
     if (refined.length > rawText.length * 3) {
-      console.error(`[voice] gemini output too long: ${refined.length} vs raw ${rawText.length}`)
-      return null
+      return { result: null, debug: `too long (${refined.length}>${rawText.length}*3). ${debugParts.join(',')}` }
     }
-    return refined
+    return { result: refined, debug: debugParts.join(',') }
   } catch (err) {
-    console.error('[voice] gemini FAIL:', err)
-    return null
+    const msg = err instanceof Error ? err.message : String(err)
+    return { result: null, debug: `FAIL: ${msg.slice(0, 100)}` }
   }
 }
 
@@ -121,6 +125,7 @@ export interface VoiceResult {
   readonly text: string | null
   readonly error?: string
   readonly refinedBy?: 'gemini' | 'biaodian' | 'none'
+  readonly debugInfo?: string
 }
 
 export async function transcribeVoiceFile(
@@ -169,9 +174,9 @@ export async function transcribeVoiceFile(
     }
 
     console.error('[voice] calling Gemini for refinement...')
-    const refined = await refineWithLLM(rawText)
+    const { result: refined, debug } = await refineWithLLM(rawText)
     console.error(`[voice] Gemini result: ${refined ? 'OK' : 'FAILED, using raw text'}`)
-    return { text: refined ?? rawText, refinedBy: refined ? 'gemini' : 'none' }
+    return { text: refined ?? rawText, refinedBy: refined ? 'gemini' : 'none', debugInfo: debug }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[voice] ERROR:', err)
@@ -305,7 +310,8 @@ async function processVoiceInBackground(
   const formatted = formatAsrText(result.text)
   // TODO: remove debug tag after confirming Gemini works
   const debugTag = result.refinedBy ? ` [${result.refinedBy}]` : ''
-  telegram.sendMessage(chatId, `🗣${debugTag} ${formatted}`).catch(() => {})
+  const debugInfo = result.debugInfo ? `\n_debug: ${result.debugInfo}_` : ''
+  telegram.sendMessage(chatId, `🗣${debugTag} ${formatted}${debugInfo}`, { parse_mode: 'Markdown' }).catch(() => {})
 
   // Resolve the buffer entry — OMB will auto-flush consecutive ready entries
   resolveVoice(result.text)
