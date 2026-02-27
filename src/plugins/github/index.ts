@@ -56,6 +56,54 @@ async function searchRepos(keyword: string): Promise<readonly SearchItem[]> {
   return data.items ?? []
 }
 
+async function followUser(username: string): Promise<{ success: boolean; name: string; bio: string; followers: number }> {
+  const followRes = await ghFetch(`/user/following/${username}`, { method: 'PUT' })
+  if (followRes.status !== 204) {
+    return { success: false, name: '', bio: '', followers: 0 }
+  }
+
+  const infoRes = await ghFetch(`/users/${username}`)
+  if (!infoRes.ok) {
+    return { success: true, name: username, bio: '', followers: 0 }
+  }
+
+  const info = await infoRes.json() as { name: string | null; bio: string | null; followers: number }
+  return { success: true, name: info.name ?? username, bio: info.bio ?? '', followers: info.followers }
+}
+
+async function followCommand(ctx: BotContext): Promise<void> {
+  const raw = (ctx.message && 'text' in ctx.message) ? ctx.message.text : ''
+  const input = raw.replace(/^\/follow(@\S+)?\s*/, '').trim()
+
+  if (!input) {
+    await ctx.reply('Usage: `/follow username`', { parse_mode: 'Markdown' })
+    return
+  }
+
+  if (!env.GITHUB_TOKEN) {
+    await ctx.reply('❌ GitHub token not configured\nSet `GITHUB_TOKEN` in `.env` with `user` scope.', { parse_mode: 'Markdown' })
+    return
+  }
+
+  const username = input.replace(/^@/, '')
+  if (!VALID_NAME.test(username)) {
+    await ctx.reply('❌ Invalid username.')
+    return
+  }
+
+  try {
+    const result = await followUser(username)
+    if (!result.success) {
+      await ctx.reply(`❌ Failed to follow \`${username}\` — user not found or token lacks \`user\` scope.`, { parse_mode: 'Markdown' })
+      return
+    }
+    const bio = result.bio ? `\n_${result.bio}_` : ''
+    await ctx.reply(`✅ Followed **${result.name}** (@${username}) — ${formatStars(result.followers)} followers${bio}`, { parse_mode: 'Markdown' })
+  } catch (err) {
+    await ctx.reply(`❌ Network error: ${err instanceof Error ? err.message : 'unknown'}`)
+  }
+}
+
 async function starCommand(ctx: BotContext): Promise<void> {
   const raw = (ctx.message && 'text' in ctx.message) ? ctx.message.text : ''
   const input = raw.replace(/^\/star(@\S+)?\s*/, '').trim()
@@ -159,12 +207,17 @@ async function handleCallback(ctx: BotContext, data: string): Promise<boolean> {
 
 const githubPlugin: Plugin = {
   name: 'github',
-  description: 'GitHub Star — 快速 star repo',
+  description: 'GitHub — star repo、follow user',
   commands: [
     {
       name: 'star',
       description: 'Star a GitHub repo (owner/repo or search keyword)',
       handler: starCommand,
+    },
+    {
+      name: 'follow',
+      description: 'Follow a GitHub user',
+      handler: followCommand,
     },
   ],
   onCallback: handleCallback,
