@@ -2,10 +2,17 @@
  * Sherpa-ONNX ASR IPC client.
  * Lazily spawns the Python server on first use,
  * communicates via stdin/stdout JSON lines.
+ *
+ * Auto-resolves server path:
+ *   1. SHERPA_SERVER_PATH env var (explicit override)
+ *   2. ../Sherpa_ASR/sherpa_server.py (sibling repo)
+ *   3. Attempts to clone Jeffrey0117/Sherpa_ASR
  */
 
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, execSync, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { createInterface, type Interface } from 'node:readline'
+import { join } from 'node:path'
 import { env } from '../config/env.js'
 
 const TIMEOUT_MS = 60_000
@@ -32,15 +39,41 @@ const commandQueue: Array<{
   readonly reject: (reason: Error) => void
 }> = []
 
+/** Resolve sherpa_server.py location, auto-clone if needed. */
+function resolveServerPath(): string {
+  // 1. Explicit env override
+  if (env.SHERPA_SERVER_PATH) return env.SHERPA_SERVER_PATH
+
+  // 2. Sibling repo (../Sherpa_ASR/)
+  const siblingPath = join(process.cwd(), '..', 'Sherpa_ASR', 'sherpa_server.py')
+  if (existsSync(siblingPath)) return siblingPath
+
+  // 3. Auto-clone
+  const cloneDir = join(process.cwd(), '..', 'Sherpa_ASR')
+  try {
+    execSync(
+      'git clone https://github.com/Jeffrey0117/Sherpa_ASR.git',
+      { cwd: join(process.cwd(), '..'), stdio: 'pipe' },
+    )
+    const clonedPath = join(cloneDir, 'sherpa_server.py')
+    if (existsSync(clonedPath)) return clonedPath
+  } catch {
+    // clone failed — no git or no network
+  }
+
+  throw new Error(
+    'Sherpa ASR not found. Clone it next to ClaudeBot:\n' +
+    '  git clone https://github.com/Jeffrey0117/Sherpa_ASR.git',
+  )
+}
+
 function ensureProcess(): void {
   if (proc) return
 
-  const serverPath = env.SHERPA_SERVER_PATH
-  if (!serverPath) {
-    throw new Error('SHERPA_SERVER_PATH is not configured')
-  }
+  const serverPath = resolveServerPath()
 
-  proc = spawn('python', [serverPath], {
+  // --speed 1 because voice-handler already does 2x via ffmpeg atempo
+  proc = spawn('python', [serverPath, '--speed', '1'], {
     shell: false,
     stdio: ['pipe', 'pipe', 'ignore'],
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
@@ -149,6 +182,16 @@ export async function addHotwords(words: readonly string[]): Promise<void> {
     console.log(`[sherpa] Injected ${words.length} hotwords:`, words.slice(0, 10).join(', '))
   } catch (err) {
     console.warn('[sherpa] Failed to set hotwords:', err)
+  }
+}
+
+/** Check if Sherpa ASR is available (env var set or sibling repo exists). */
+export function isSherpaAvailable(): boolean {
+  try {
+    resolveServerPath()
+    return true
+  } catch {
+    return false
   }
 }
 

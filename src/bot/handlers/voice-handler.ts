@@ -6,6 +6,7 @@
 
 import { execFile } from 'node:child_process'
 import { writeFile, unlink, mkdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -15,7 +16,7 @@ import { getUserState } from '../state.js'
 import { resolveBackend } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue } from '../../claude/queue.js'
-import { transcribeAudio } from '../../asr/sherpa-client.js'
+import { transcribeAudio, isSherpaAvailable } from '../../asr/sherpa-client.js'
 import { recordActivity } from '../../plugins/stats/activity-logger.js'
 import { env } from '../../config/env.js'
 import { getAsrMode, consumeAsrMode } from '../asr-store.js'
@@ -48,7 +49,14 @@ async function refineWithLLM(rawText: string): Promise<string | null> {
     return null
   }
 }
-const BIAODIAN_PATH = env.BIAODIAN_PATH || join(process.cwd(), '..', 'biaodian', 'biaodian.py')
+function resolveBiaodianPath(): string {
+  if (env.BIAODIAN_PATH) return env.BIAODIAN_PATH
+  const sherpaAsr = join(process.cwd(), '..', 'Sherpa_ASR', 'punctuation.py')
+  if (existsSync(sherpaAsr)) return sherpaAsr
+  return join(process.cwd(), '..', 'biaodian', 'biaodian.py')
+}
+
+const BIAODIAN_PATH = resolveBiaodianPath()
 
 /**
  * Add punctuation using the biaodian rule-based tool.
@@ -91,7 +99,7 @@ export async function transcribeVoiceFile(
   fileId: string,
   telegram: BotContext['telegram'],
 ): Promise<string | null> {
-  if (!env.SHERPA_SERVER_PATH) return null
+  if (!isSherpaAvailable()) return null
 
   const id = randomUUID()
   const oggPath = join(TEMP_DIR, `${id}.ogg`)
@@ -128,7 +136,7 @@ export async function transcribeVoiceFile(
 }
 
 export async function voiceHandler(ctx: BotContext): Promise<void> {
-  if (!env.SHERPA_SERVER_PATH) return
+  if (!isSherpaAvailable()) return
 
   const chatId = ctx.chat?.id
   if (!chatId) return

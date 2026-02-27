@@ -36,7 +36,7 @@ import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
 import { voiceHandler } from './handlers/voice-handler.js'
-import { warmupSherpa, addHotwords } from '../asr/sherpa-client.js'
+import { warmupSherpa, addHotwords, isSherpaAvailable } from '../asr/sherpa-client.js'
 import { scanProjects } from '../config/projects.js'
 import { setupQueueProcessor } from './queue-processor.js'
 import { setBotInstance } from './bio-updater.js'
@@ -234,7 +234,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
   startCommandReader()
 
   // Pre-spawn Sherpa ASR process (avoid cold start on first voice)
-  if (env.SHERPA_SERVER_PATH) {
+  if (isSherpaAvailable()) {
     warmupSherpa()
 
     // Inject project names as hotwords so ASR recognises them correctly
