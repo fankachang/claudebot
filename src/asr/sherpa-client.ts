@@ -75,17 +75,25 @@ function ensureProcess(): void {
   // --speed 1 because voice-handler already does 2x via ffmpeg atempo
   proc = spawn('python', [serverPath, '--speed', '1'], {
     shell: false,
-    stdio: ['pipe', 'pipe', 'ignore'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
   })
 
   rl = createInterface({ input: proc.stdout! })
+
+  // Log stderr for debugging
+  if (proc.stderr) {
+    proc.stderr.on('data', (chunk: Buffer) => {
+      console.error('[sherpa-stderr]', chunk.toString().trim())
+    })
+  }
 
   // First line is the init result — consume it
   let initConsumed = false
   rl.on('line', (line: string) => {
     if (!initConsumed) {
       initConsumed = true
+      console.log('[sherpa-init]', line)
       return
     }
     if (!pending) return
