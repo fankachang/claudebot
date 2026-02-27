@@ -40,11 +40,16 @@ async function refineWithLLM(rawText: string): Promise<string | null> {
     const { stdout } = await execFileAsync('gemini', [
       '-p', prompt,
     ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true })
-    const refined = stdout.trim()
-    // Sanity check: don't accept empty or absurdly different-length results
+    // Strip Gemini CLI preamble lines (e.g. "Loaded cached credentials.")
+    const lines = stdout.split('\n').filter(
+      (l) => l.trim() && !l.includes('credentials') && !l.includes('Hook registry'),
+    )
+    const refined = lines.join('\n').trim()
     if (!refined || refined.length > rawText.length * 3) return null
+    console.log(`[voice] gemini OK: "${refined.slice(0, 60)}"`)
     return refined
-  } catch {
+  } catch (err) {
+    console.error('[voice] gemini FAIL:', err)
     return null
   }
 }
