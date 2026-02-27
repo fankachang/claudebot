@@ -168,7 +168,10 @@ export async function transcribeVoiceFile(
     }
 
     console.error('[voice] calling Gemini for refinement...')
+    const { appendFileSync: appendLog } = await import('node:fs')
+    appendLog('data/voice-debug.log', `[${new Date().toISOString()}] calling Gemini for: ${rawText.slice(0, 50)}...\n`)
     const refined = await refineWithLLM(rawText)
+    appendLog('data/voice-debug.log', `[${new Date().toISOString()}] Gemini result: ${refined ? 'OK' : 'FAILED'}\n`)
     console.error(`[voice] Gemini result: ${refined ? 'OK' : 'FAILED, using raw text'}`)
     return { text: refined ?? rawText }
   } catch (err) {
@@ -197,6 +200,10 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
   const asrMode = getAsrMode(chatId)
 
   console.error(`[voice] handler entered: chatId=${chatId}, asrMode=${asrMode}`)
+
+  // Debug: also write to file so we can always check
+  const { appendFileSync } = await import('node:fs')
+  appendFileSync('data/voice-debug.log', `[${new Date().toISOString()}] handler entered: chatId=${chatId}, asrMode=${asrMode}\n`)
 
   if (!hasProjectOrAsrMode(chatId, threadId, asrMode)) {
     await ctx.reply('用 /projects 選擇專案，或 /chat 進入通用對話模式。')
