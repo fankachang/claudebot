@@ -1,7 +1,10 @@
 /**
  * Voice message handler.
- * Downloads OGG → ffmpeg converts to 16 kHz WAV (2x speed) → Sherpa ASR →
- * LLM refinement (fix typos/grammar) → enqueue as prompt.
+ * Downloads OGG → ffmpeg converts to 16 kHz WAV → Sherpa ASR →
+ * LLM refinement (fix typos/grammar) → ordered message buffer → AI queue.
+ *
+ * Graceful degradation: when >= 2 voice messages are processing concurrently,
+ * skip Gemini refinement and use fast biaodian punctuation instead.
  */
 
 import { execFile } from 'node:child_process'
@@ -13,13 +16,10 @@ import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import type { BotContext } from '../../types/context.js'
 import { getUserState } from '../state.js'
-import { resolveBackend } from '../../ai/types.js'
-import { getAISessionId } from '../../ai/session-store.js'
-import { enqueue } from '../../claude/queue.js'
 import { transcribeAudio, isSherpaAvailable } from '../../asr/sherpa-client.js'
-import { recordActivity } from '../../plugins/stats/activity-logger.js'
 import { env } from '../../config/env.js'
 import { getAsrMode, consumeAsrMode } from '../asr-store.js'
+import { addVoice, getVoiceActive } from '../ordered-message-buffer.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -46,13 +46,13 @@ async function refineWithLLM(rawText: string): Promise<string | null> {
     )
     const refined = lines.join('\n').trim()
     if (!refined || refined.length > rawText.length * 3) return null
-    console.log(`[voice] gemini OK: "${refined.slice(0, 60)}"`)
     return refined
   } catch (err) {
     console.error('[voice] gemini FAIL:', err)
     return null
   }
 }
+
 function resolveBiaodianPath(): string {
   if (env.BIAODIAN_PATH) return env.BIAODIAN_PATH
   const sherpaAsr = join(process.cwd(), '..', 'Sherpa_ASR', 'punctuation.py')
@@ -64,7 +64,7 @@ const BIAODIAN_PATH = resolveBiaodianPath()
 
 /**
  * Add punctuation using the biaodian rule-based tool.
- * Zero-latency pure-regex approach — ideal as a pre-processing step.
+ * Zero-latency pure-regex approach — ideal when degrading from Gemini.
  */
 async function addPunctuation(text: string): Promise<string> {
   try {
@@ -95,7 +95,6 @@ async function cleanupFiles(...paths: string[]): Promise<void> {
 
 /**
  * Download a Telegram voice/audio file and transcribe it via Sherpa ASR + LLM refinement.
- * Audio is played at 2x speed before ASR — keeps accuracy while halving processing time.
  * Returns the transcribed text, or null on failure.
  * Reusable by both voiceHandler and reply-quote extraction.
  */
@@ -107,6 +106,7 @@ export interface VoiceResult {
 export async function transcribeVoiceFile(
   fileId: string,
   telegram: BotContext['telegram'],
+  options?: { skipGemini?: boolean },
 ): Promise<VoiceResult> {
   if (!isSherpaAvailable()) {
     console.error('[voice] Sherpa not available')
@@ -118,7 +118,6 @@ export async function transcribeVoiceFile(
   const wavPath = join(TEMP_DIR, `${id}.wav`)
 
   try {
-    console.log('[voice] downloading file...')
     const [fileLink] = await Promise.all([
       telegram.getFileLink(fileId),
       ensureTempDir(),
@@ -131,7 +130,6 @@ export async function transcribeVoiceFile(
 
     const buffer = Buffer.from(await response.arrayBuffer())
     await writeFile(oggPath, buffer)
-    console.log('[voice] ffmpeg converting...')
 
     try {
       await execFileAsync('ffmpeg', [
@@ -143,17 +141,19 @@ export async function transcribeVoiceFile(
       return { text: null, error: 'ffmpeg 轉檔失敗' }
     }
 
-    console.log('[voice] transcribing...')
     const result = await transcribeAudio(wavPath)
-    console.log('[voice] result:', JSON.stringify(result).slice(0, 200))
     if (!result.success || !result.text) {
       return { text: null, error: `辨識失敗${result.error ? `: ${result.error}` : ''}` }
     }
     const rawText = result.text.trim()
 
+    // Graceful degradation: skip Gemini when overloaded, use fast punctuation
+    if (options?.skipGemini) {
+      const punctuated = await addPunctuation(rawText)
+      return { text: punctuated }
+    }
+
     const refined = await refineWithLLM(rawText)
-    console.log(`[voice] raw: ${rawText.slice(0, 80)}`)
-    console.log(`[voice] refined: ${refined?.slice(0, 80) ?? '(failed)'}`)
     return { text: refined ?? rawText }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -166,7 +166,7 @@ export async function transcribeVoiceFile(
 
 export async function voiceHandler(ctx: BotContext): Promise<void> {
   if (!isSherpaAvailable()) {
-    await ctx.reply('\u{1F399}\u{FE0F} \u{8A9E}\u{97F3}\u{8FA8}\u{8B58}\u{672A}\u{555F}\u{7528}\u{3002}\n\u{9700}\u{8981}\u{5B89}\u{88DD} Sherpa ASR\uFF1Agithub.com/Jeffrey0117/Sherpa_ASR')
+    await ctx.reply('🎙️ 語音辨識未啟用。\n需要安裝 Sherpa ASR：github.com/Jeffrey0117/Sherpa_ASR')
     return
   }
 
@@ -176,30 +176,50 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
   const message = ctx.message
   if (!message || !('voice' in message) || !message.voice) return
 
+  const messageId = message.message_id
   const threadId = message.message_thread_id
   const asrMode = getAsrMode(chatId)
 
-  if (!state_selectedProjectOrAsrMode(chatId, threadId, asrMode)) {
-    await ctx.reply('\u{7528} /projects \u{9078}\u{64C7}\u{5C08}\u{6848}\uFF0C\u{6216} /chat \u{9032}\u{5165}\u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\u{3002}')
+  if (!hasProjectOrAsrMode(chatId, threadId, asrMode)) {
+    await ctx.reply('用 /projects 選擇專案，或 /chat 進入通用對話模式。')
     return
   }
 
-  // Non-blocking: acknowledge immediately, process in background
-  const ackMsg = await ctx.reply('\u{1F399}\u{FE0F} \u{8655}\u{7406}\u{4E2D}...')
+  // ASR-only mode — bypass buffer, process directly
+  if (asrMode !== 'off') {
+    const ackMsg = await ctx.reply('🎙️ 處理中...')
+    const fileId = message.voice.file_id
+    const { telegram } = ctx
 
-  // Capture everything needed, then release the middleware chain
+    processAsrOnly(telegram, chatId, fileId, ackMsg.message_id).catch((err) => {
+      console.error('[voice] ASR-only error:', err)
+    })
+    return
+  }
+
+  // Normal mode — register in ordered buffer, then process in background
+  const state = getUserState(chatId, threadId)
+  if (!state.selectedProject) return
+
+  const voiceActive = getVoiceActive(chatId, threadId)
+  const ackText = voiceActive === 0
+    ? '🎙️ 處理中...'
+    : `🎙️ 已收到，前面 ${voiceActive} 條語音處理中`
+  const ackMsg = await ctx.reply(ackText)
+
+  const resolveVoice = addVoice(chatId, messageId, threadId)
   const fileId = message.voice.file_id
   const { telegram } = ctx
 
   processVoiceInBackground(
-    telegram, chatId, threadId, fileId, asrMode, ackMsg.message_id,
+    telegram, chatId, threadId, fileId, ackMsg.message_id, resolveVoice,
   ).catch((err) => {
     console.error('[voice] background error:', err)
   })
 }
 
 /** Quick check: either ASR mode is on, or user has a selected project. */
-function state_selectedProjectOrAsrMode(
+function hasProjectOrAsrMode(
   chatId: number, threadId: number | undefined, asrMode: string,
 ): boolean {
   if (asrMode !== 'off') return true
@@ -207,73 +227,63 @@ function state_selectedProjectOrAsrMode(
   return state.selectedProject !== null
 }
 
-async function processVoiceInBackground(
+/** ASR-only mode: transcribe and reply directly, no buffer. */
+async function processAsrOnly(
   telegram: BotContext['telegram'],
   chatId: number,
-  threadId: number | undefined,
   fileId: string,
-  asrMode: string,
   ackMsgId: number,
 ): Promise<void> {
   const deleteAck = () => telegram.deleteMessage(chatId, ackMsgId).catch(() => {})
 
   const result = await transcribeVoiceFile(fileId, telegram)
 
-  // ASR-only mode
-  if (asrMode !== 'off') {
-    consumeAsrMode(chatId)
-    deleteAck()
-
-    if (!result.text) {
-      await telegram.sendMessage(chatId,
-        `\u{274C} \u{8A9E}\u{97F3}\u{8FA8}\u{8B58}\u{5931}\u{6557}${result.error ? `\uFF1A${result.error}` : '\uFF0C\u{8ACB}\u{91CD}\u{8A66}'}`,
-      )
-      return
-    }
-
-    const punctuated = await addPunctuation(result.text)
-    await telegram.sendMessage(chatId,
-      `\u{1F4DD} \u{8FA8}\u{8B58}\u{7D50}\u{679C}\uFF1A\n\`\`\`\n${punctuated}\n\`\`\`\n\u{1F4A1} _\u{9EDE}\u{64CA}\u{4E0A}\u{65B9}\u{6587}\u{5B57}\u{53EF}\u{8907}\u{88FD}_`,
-      { parse_mode: 'Markdown' },
-    )
-    return
-  }
-
-  // Normal mode: transcribe → enqueue to AI
-  const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) {
-    deleteAck()
-    return
-  }
+  consumeAsrMode(chatId)
+  deleteAck()
 
   if (!result.text) {
-    deleteAck()
     await telegram.sendMessage(chatId,
-      `\u{274C} \u{8A9E}\u{97F3}\u{8FA8}\u{8B58}\u{5931}\u{6557}${result.error ? `\uFF1A${result.error}` : '\uFF0C\u{8ACB}\u{91CD}\u{8A66}'}`,
+      `❌ 語音辨識失敗${result.error ? `：${result.error}` : '，請重試'}`,
     )
     return
   }
 
-  const project = state.selectedProject
-  const text = result.text
+  const punctuated = await addPunctuation(result.text)
+  await telegram.sendMessage(chatId,
+    `📝 辨識結果：\n\`\`\`\n${punctuated}\n\`\`\`\n💡 _點擊上方文字可複製_`,
+    { parse_mode: 'Markdown' },
+  )
+}
 
-  recordActivity({
-    timestamp: Date.now(),
-    type: 'voice_sent',
-    project: project.name,
-    promptLength: text.length,
-  })
+/** Normal mode: transcribe → resolve buffer entry → OMB auto-flushes. */
+async function processVoiceInBackground(
+  telegram: BotContext['telegram'],
+  chatId: number,
+  threadId: number | undefined,
+  fileId: string,
+  ackMsgId: number,
+  resolveVoice: (text: string | null) => void,
+): Promise<void> {
+  const deleteAck = () => telegram.deleteMessage(chatId, ackMsgId).catch(() => {})
 
-  const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
-  enqueue({
-    chatId,
-    prompt: `[\u{8A9E}\u{97F3}\u{8F38}\u{5165}] ${text}`,
-    project,
-    ai: state.ai,
-    sessionId,
-    imagePaths: [],
-  })
+  // Graceful degradation: skip Gemini when >= 2 voices active
+  const skipGemini = getVoiceActive(chatId, threadId) >= 2
+
+  const result = await transcribeVoiceFile(fileId, telegram, { skipGemini })
 
   deleteAck()
-  telegram.sendMessage(chatId, `\u{1F5E3} ${text}`).catch(() => {})
+
+  if (!result.text) {
+    resolveVoice(null)
+    telegram.sendMessage(chatId,
+      `❌ 語音辨識失敗${result.error ? `：${result.error}` : '，已跳過'}`,
+    ).catch(() => {})
+    return
+  }
+
+  // Show transcribed text to user
+  telegram.sendMessage(chatId, `🗣 ${result.text}`).catch(() => {})
+
+  // Resolve the buffer entry — OMB will auto-flush consecutive ready entries
+  resolveVoice(result.text)
 }

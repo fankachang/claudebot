@@ -1,7 +1,8 @@
 import type { Plugin } from '../../types/plugin.js'
 import type { BotContext } from '../../types/context.js'
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { existsSync, unlinkSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { createJsonFileStore } from '../../utils/json-file-store.js'
 
 // --- Persistent storage ---
 
@@ -15,31 +16,19 @@ interface ScheduledTask {
   readonly enabled: boolean
 }
 
-function ensureDir(): void {
-  const dir = dirname(DATA_PATH)
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
-}
+const store = createJsonFileStore<ScheduledTask[]>(DATA_PATH, () => [])
 
 function loadTasks(): Map<string, ScheduledTask> {
-  try {
-    const raw = readFileSync(DATA_PATH, 'utf-8')
-    const arr = JSON.parse(raw) as ScheduledTask[]
-    const map = new Map<string, ScheduledTask>()
-    for (const task of arr) {
-      map.set(task.id, task)
-    }
-    return map
-  } catch {
-    return new Map()
+  const arr = store.load()
+  const map = new Map<string, ScheduledTask>()
+  for (const task of arr) {
+    map.set(task.id, task)
   }
+  return map
 }
 
 function saveTasks(map: Map<string, ScheduledTask>): void {
-  ensureDir()
-  const arr = [...map.values()]
-  writeFileSync(DATA_PATH, JSON.stringify(arr, null, 2), 'utf-8')
+  store.save([...map.values()])
 }
 
 const tasks: Map<string, ScheduledTask> = new Map()

@@ -79,7 +79,16 @@ export function getUserState(chatId: number, threadId?: number): Readonly<UserSt
   return state
 }
 
+/** Hooks called before project switch to flush pending buffers. */
+const projectSwitchHooks: Array<(chatId: number) => void> = []
+
+/** Register a callback to run before project switch (used by OMB). */
+export function onProjectSwitch(fn: (chatId: number) => void): void {
+  projectSwitchHooks.push(fn)
+}
+
 export function setUserProject(chatId: number, project: ProjectInfo, threadId?: number): void {
+  for (const hook of projectSwitchHooks) hook(chatId)
   const key = sessionKey(chatId, threadId)
   const state = getUserState(chatId, threadId)
   userStates.set(key, { ...state, selectedProject: project })

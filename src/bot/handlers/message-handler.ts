@@ -2,27 +2,14 @@ import type { BotContext } from '../../types/context.js'
 import { getUserState, setUserProject } from '../state.js'
 import { resolveBackend, formatAILabel } from '../../ai/types.js'
 import { getAISessionId } from '../../ai/session-store.js'
-import { enqueue, isProcessing, getQueueLength } from '../../claude/queue.js'
+import { enqueue, isProcessing } from '../../claude/queue.js'
 import { cancelAnyRunning } from '../../ai/registry.js'
 import { transcribeVoiceFile } from './voice-handler.js'
 import { scanProjects } from '../../config/projects.js'
 import { updateBotBio, pinProjectStatus } from '../bio-updater.js'
 import { recordActivity } from '../../plugins/stats/activity-logger.js'
+import { addText, clearBuffer } from '../ordered-message-buffer.js'
 import type { ProjectInfo } from '../../types/index.js'
-
-const COLLECT_MS = 1000
-const pendingMessages = new Map<number, { texts: string[]; replyQuote: string; timer: ReturnType<typeof setTimeout>; createdAt: number }>()
-
-// Periodic cleanup: flush stale pending batches (e.g. user abandoned chat)
-setInterval(() => {
-  const cutoff = Date.now() - 30_000
-  for (const [chatId, pending] of pendingMessages) {
-    if (pending.createdAt < cutoff) {
-      clearTimeout(pending.timer)
-      pendingMessages.delete(chatId)
-    }
-  }
-}, 30_000)
 
 function extractMentionText(ctx: BotContext, rawText: string): string | null {
   const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
@@ -74,108 +61,6 @@ async function extractReplyQuote(ctx: BotContext): Promise<string> {
   return ''
 }
 
-export async function messageHandler(ctx: BotContext): Promise<void> {
-  const chatId = ctx.chat?.id
-  if (!chatId) return
-
-  const rawText = (ctx.message && 'text' in ctx.message) ? ctx.message.text : ''
-  if (!rawText) return
-
-  // In groups, only respond to @mentions; strip the mention from text
-  const text = extractMentionText(ctx, rawText)
-  if (text === null || !text) return
-
-  // Prepend quoted reply content if user replied to a message (supports voice transcription)
-  const replyQuote = await extractReplyQuote(ctx)
-
-  // Unmatched commands: show hint instead of silently dropping
-  if (text.startsWith('/')) {
-    const cmd = text.split(/\s/)[0]
-    await ctx.reply(`\u{274C} \u{672A}\u{77E5}\u{6307}\u{4EE4} ${cmd}\u{3002}\u{7528} /help \u{67E5}\u{770B}\u{6240}\u{6709}\u{6307}\u{4EE4}\u{3002}`)
-    return
-  }
-
-  const threadId = ctx.message?.message_thread_id
-  const state = getUserState(chatId, threadId)
-
-  // @chat one-shot: general chat without selecting a project
-  const chatMatch = text.match(/^@chat[\s(](.+?)[\s)]*$/s) ?? text.match(/^@chat\s+(.+)$/s)
-  if (chatMatch) {
-    const chatPrompt = chatMatch[1].replace(/^\(|\)$/g, '').trim()
-    if (chatPrompt) {
-      const generalProject = { name: 'general', path: process.cwd() }
-      const sessionId = getAISessionId(resolveBackend(state.ai.backend), generalProject.path)
-      enqueue({
-        chatId,
-        prompt: replyQuote + chatPrompt,
-        project: generalProject,
-        ai: state.ai,
-        sessionId,
-        imagePaths: [],
-      })
-      return
-    }
-  }
-
-  if (!state.selectedProject) {
-    await ctx.reply(
-      '*ClaudeBot* \u{2014} Claude Code \u{9059}\u{7AEF}\u{63A7}\u{5236}\n\n'
-      + '\u{1F4C2} /projects \u{2014} \u{9078}\u{64C7}\u{5C08}\u{6848}\u{4F86}\u{64CD}\u{4F5C}\u{7A0B}\u{5F0F}\u{78BC}\n'
-      + '\u{1F4AC} /chat \u{2014} \u{901A}\u{7528}\u{5C0D}\u{8A71}\u{6A21}\u{5F0F}\n'
-      + '\u{26A1} `@chat \u{4F60}\u{7684}\u{554F}\u{984C}` \u{2014} \u{5FEB}\u{901F}\u{63D0}\u{554F}\n'
-      + '\u{2753} /help \u{2014} \u{67E5}\u{770B}\u{6240}\u{6709}\u{6307}\u{4EE4}',
-      { parse_mode: 'Markdown' }
-    )
-    return
-  }
-
-  const project = state.selectedProject
-  const projectProcessing = isProcessing(project.path)
-
-  // Steer mode: message starts with "!" to cancel current and replace
-  if (text.startsWith('!') && projectProcessing) {
-    const steerText = text.slice(1).trim()
-    if (!steerText) {
-      await ctx.reply('\u{7528}\u{6CD5}: !<\u{8A0A}\u{606F}> \u{53D6}\u{6D88}\u{76EE}\u{524D}\u{4E26}\u{50B3}\u{9001}\u{65B0}\u{63D0}\u{793A}')
-      return
-    }
-    cancelAnyRunning(project.path)
-    const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
-    enqueue({
-      chatId,
-      prompt: replyQuote + steerText,
-      project,
-      ai: state.ai,
-      sessionId,
-      imagePaths: [],
-    })
-    await ctx.reply(`\u{1F504} [${project.name}] \u{5DF2}\u{8F49}\u{5411} \u{2014} \u{53D6}\u{6D88}\u{76EE}\u{524D}\u{FF0C}\u{8655}\u{7406}\u{65B0}\u{63D0}\u{793A}`)
-    return
-  }
-
-  // Collect mode: batch rapid messages
-  let pending = pendingMessages.get(chatId)
-  if (pending) {
-    pending.texts.push(text)
-    clearTimeout(pending.timer)
-    pending.timer = setTimeout(() => flushMessages(chatId, threadId), COLLECT_MS)
-    return
-  }
-
-  pending = {
-    texts: [text],
-    replyQuote,
-    timer: setTimeout(() => flushMessages(chatId, threadId), COLLECT_MS),
-    createdAt: Date.now(),
-  }
-  pendingMessages.set(chatId, pending)
-
-  if (projectProcessing) {
-    const qLen = getQueueLength(project.path)
-    await ctx.reply(`\u{1F4E5} [${project.name}] \u{5DF2}\u{52A0}\u{5165}\u{4F47}\u{5217} (\u{524D}\u{65B9} ${qLen + 1} \u{500B})\n\u{63D0}\u{793A}: \u{524D}\u{7DB4} ! \u{53EF}\u{8F49}\u{5411}`)
-  }
-}
-
 /**
  * Detect if user's message mentions a known project name.
  * Returns the first mentioned project, or null.
@@ -197,21 +82,91 @@ function detectProjectMention(text: string): ProjectInfo | null {
   return null
 }
 
-function flushMessages(chatId: number, threadId?: number): void {
-  const pending = pendingMessages.get(chatId)
-  if (!pending) return
-  pendingMessages.delete(chatId)
+export async function messageHandler(ctx: BotContext): Promise<void> {
+  const chatId = ctx.chat?.id
+  if (!chatId) return
 
+  const rawText = (ctx.message && 'text' in ctx.message) ? ctx.message.text : ''
+  if (!rawText) return
+
+  // In groups, only respond to @mentions; strip the mention from text
+  const text = extractMentionText(ctx, rawText)
+  if (text === null || !text) return
+
+  // Prepend quoted reply content if user replied to a message (supports voice transcription)
+  const replyQuote = await extractReplyQuote(ctx)
+
+  // Unmatched commands: show hint instead of silently dropping
+  if (text.startsWith('/')) {
+    const cmd = text.split(/\s/)[0]
+    await ctx.reply(`❌ 未知指令 ${cmd}。用 /help 查看所有指令。`)
+    return
+  }
+
+  const messageId = ctx.message?.message_id ?? 0
+  const threadId = ctx.message?.message_thread_id
   const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) return
 
-  const combined = pending.replyQuote + pending.texts.join('\n\n')
-  const isGeneralMode = state.selectedProject.name === 'general'
+  // @chat one-shot: general chat without selecting a project — bypass buffer
+  const chatMatch = text.match(/^@chat[\s(](.+?)[\s)]*$/s) ?? text.match(/^@chat\s+(.+)$/s)
+  if (chatMatch) {
+    const chatPrompt = chatMatch[1].replace(/^\(|\)$/g, '').trim()
+    if (chatPrompt) {
+      const generalProject = { name: 'general', path: process.cwd() }
+      const sessionId = getAISessionId(resolveBackend(state.ai.backend), generalProject.path)
+      enqueue({
+        chatId,
+        prompt: replyQuote + chatPrompt,
+        project: generalProject,
+        ai: state.ai,
+        sessionId,
+        imagePaths: [],
+      })
+      return
+    }
+  }
 
-  // Auto-switch: if in chat/general mode and user mentions a project name,
-  // switch to that project so Claude can actually work on the code
-  if (isGeneralMode) {
-    const detected = detectProjectMention(combined)
+  // No project selected — bypass buffer, show help
+  if (!state.selectedProject) {
+    await ctx.reply(
+      '*ClaudeBot* — Claude Code 遙端控制\n\n'
+      + '📂 /projects — 選擇專案來操作程式碼\n'
+      + '💬 /chat — 通用對話模式\n'
+      + '⚡ `@chat 你的問題` — 快速提問\n'
+      + '❓ /help — 查看所有指令',
+      { parse_mode: 'Markdown' }
+    )
+    return
+  }
+
+  const project = state.selectedProject
+
+  // Steer mode: message starts with "!" to cancel current and replace
+  if (text.startsWith('!') && isProcessing(project.path)) {
+    const steerText = text.slice(1).trim()
+    if (!steerText) {
+      await ctx.reply('用法: !<訊息> 取消目前並傳送新提示')
+      return
+    }
+    clearBuffer(chatId, threadId)
+    cancelAnyRunning(project.path)
+    const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
+    enqueue({
+      chatId,
+      prompt: replyQuote + steerText,
+      project,
+      ai: state.ai,
+      sessionId,
+      imagePaths: [],
+    })
+    await ctx.reply(`🔄 [${project.name}] 已轉向 — 取消目前，處理新提示`)
+    return
+  }
+
+  // Auto-switch: if in general mode and user mentions a project name,
+  // flush existing buffer and switch to that project
+  if (project.name === 'general') {
+    const detected = detectProjectMention(text)
     if (detected) {
       setUserProject(chatId, detected, threadId)
       updateBotBio(detected).catch(() => {})
@@ -221,13 +176,13 @@ function flushMessages(chatId: number, threadId?: number): void {
         timestamp: Date.now(),
         type: 'message_sent',
         project: detected.name,
-        promptLength: combined.length,
+        promptLength: (replyQuote + text).length,
       })
 
       const sessionId = getAISessionId(resolveBackend(state.ai.backend), detected.path)
       enqueue({
         chatId,
-        prompt: combined,
+        prompt: replyQuote + text,
         project: detected,
         ai: state.ai,
         sessionId,
@@ -237,22 +192,10 @@ function flushMessages(chatId: number, threadId?: number): void {
     }
   }
 
-  const project = state.selectedProject
-  const sessionId = getAISessionId(resolveBackend(state.ai.backend), project.path)
+  // Normal message → add to ordered buffer
+  const status = addText(chatId, messageId, threadId, text, replyQuote)
 
-  recordActivity({
-    timestamp: Date.now(),
-    type: 'message_sent',
-    project: project.name,
-    promptLength: combined.length,
-  })
-
-  enqueue({
-    chatId,
-    prompt: combined,
-    project,
-    ai: state.ai,
-    sessionId,
-    imagePaths: [],
-  })
+  if (status?.isProcessing) {
+    await ctx.reply(`📥 [${status.projectName}] 已加入佇列 (前方 ${status.queueLength + 1} 個)\n提示: 前綴 ! 可轉向`)
+  }
 }
