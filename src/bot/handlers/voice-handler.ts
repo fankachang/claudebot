@@ -41,17 +41,24 @@ interface RefineResult {
 }
 
 // Resolve gemini CLI path (not in PATH when bot runs as child process)
-const GEMINI_PATH = process.platform === 'win32'
+const GEMINI_CMD = process.platform === 'win32'
   ? join(process.env.APPDATA || '', 'npm', 'gemini.cmd')
   : 'gemini'
 
 async function refineWithLLM(rawText: string): Promise<RefineResult> {
   try {
     const prompt = `${REFINE_PROMPT}\n\n原始文字：${rawText}`
-    // Windows needs shell for .cmd files
-    const { stdout, stderr } = await execFileAsync(GEMINI_PATH, [
-      '-p', prompt,
-    ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true, shell: true })
+    // Windows: use cmd.exe /c to execute .cmd files
+    const isWindows = process.platform === 'win32'
+    const command = isWindows ? 'cmd.exe' : GEMINI_CMD
+    const args = isWindows
+      ? ['/c', GEMINI_CMD, '-p', prompt]
+      : ['-p', prompt]
+    const { stdout, stderr } = await execFileAsync(command, args, {
+      encoding: 'utf-8',
+      timeout: 15_000,
+      windowsHide: true,
+    })
     const debugParts = [`stdout=${stdout.length}c`, `stderr=${stderr.length}c`]
     // Strip Gemini CLI preamble lines (e.g. "Loaded cached credentials.")
     const lines = stdout.split('\n').filter(
