@@ -40,10 +40,15 @@ interface RefineResult {
   readonly debug: string
 }
 
+// Resolve gemini CLI path (not in PATH when bot runs as child process)
+const GEMINI_PATH = process.platform === 'win32'
+  ? join(process.env.APPDATA || '', 'npm', 'gemini.cmd')
+  : 'gemini'
+
 async function refineWithLLM(rawText: string): Promise<RefineResult> {
   try {
     const prompt = `${REFINE_PROMPT}\n\n原始文字：${rawText}`
-    const { stdout, stderr } = await execFileAsync('gemini', [
+    const { stdout, stderr } = await execFileAsync(GEMINI_PATH, [
       '-p', prompt,
     ], { encoding: 'utf-8', timeout: 15_000, windowsHide: true })
     const debugParts = [`stdout=${stdout.length}c`, `stderr=${stderr.length}c`]
