@@ -135,6 +135,8 @@ export async function transcribeVoiceFile(
     const rawText = result.text.trim()
 
     const refined = await refineWithLLM(rawText)
+    console.log(`[voice] raw: ${rawText.slice(0, 80)}`)
+    console.log(`[voice] refined: ${refined?.slice(0, 80) ?? '(failed)'}`)
     return refined ?? rawText
   } catch (err) {
     console.error('[voice] ERROR:', err)
@@ -207,5 +209,5 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
     imagePaths: [],
   })
 
-  ctx.reply(`\u{1F3A4} ${text}`).catch(() => {})
+  ctx.reply(`\u{1F5E3} ${text}`).catch(() => {})
 }
