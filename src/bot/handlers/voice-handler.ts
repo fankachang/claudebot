@@ -120,6 +120,7 @@ async function cleanupFiles(...paths: string[]): Promise<void> {
 export interface VoiceResult {
   readonly text: string | null
   readonly error?: string
+  readonly refinedBy?: 'gemini' | 'biaodian' | 'none'
 }
 
 export async function transcribeVoiceFile(
@@ -164,16 +165,13 @@ export async function transcribeVoiceFile(
     if (options?.skipGemini) {
       console.error('[voice] skipping Gemini (overloaded), using biaodian')
       const punctuated = await addPunctuation(rawText)
-      return { text: punctuated }
+      return { text: punctuated, refinedBy: 'biaodian' }
     }
 
     console.error('[voice] calling Gemini for refinement...')
-    const { appendFileSync: appendLog } = await import('node:fs')
-    appendLog('data/voice-debug.log', `[${new Date().toISOString()}] calling Gemini for: ${rawText.slice(0, 50)}...\n`)
     const refined = await refineWithLLM(rawText)
-    appendLog('data/voice-debug.log', `[${new Date().toISOString()}] Gemini result: ${refined ? 'OK' : 'FAILED'}\n`)
     console.error(`[voice] Gemini result: ${refined ? 'OK' : 'FAILED, using raw text'}`)
-    return { text: refined ?? rawText }
+    return { text: refined ?? rawText, refinedBy: refined ? 'gemini' : 'none' }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[voice] ERROR:', err)
@@ -200,10 +198,6 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
   const asrMode = getAsrMode(chatId)
 
   console.error(`[voice] handler entered: chatId=${chatId}, asrMode=${asrMode}`)
-
-  // Debug: also write to file so we can always check
-  const { appendFileSync } = await import('node:fs')
-  appendFileSync('data/voice-debug.log', `[${new Date().toISOString()}] handler entered: chatId=${chatId}, asrMode=${asrMode}\n`)
 
   if (!hasProjectOrAsrMode(chatId, threadId, asrMode)) {
     await ctx.reply('用 /projects 選擇專案，或 /chat 進入通用對話模式。')
@@ -309,7 +303,9 @@ async function processVoiceInBackground(
 
   // Show transcribed text to user (break into paragraphs at sentence endings)
   const formatted = formatAsrText(result.text)
-  telegram.sendMessage(chatId, `🗣 ${formatted}`).catch(() => {})
+  // TODO: remove debug tag after confirming Gemini works
+  const debugTag = result.refinedBy ? ` [${result.refinedBy}]` : ''
+  telegram.sendMessage(chatId, `🗣${debugTag} ${formatted}`).catch(() => {})
 
   // Resolve the buffer entry — OMB will auto-flush consecutive ready entries
   resolveVoice(result.text)
