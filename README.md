@@ -97,6 +97,7 @@ ClaudeBot is one piece of a developer toolkit that covers your entire workflow â
 | [**ZeroSetup**](https://github.com/Jeffrey0117/ZeroSetup) | Any GitHub project, double-click to run. Zero setup steps | `npx zerosetup` |
 | **ClaudeBot** | Write and edit code from your phone via AI | *you are here* |
 | [**CloudPipe**](https://github.com/Jeffrey0117/CloudPipe) | Self-hosted Vercel. Auto-deploys, Telegram control, 31+ MCP tools | `npm i -g @jeffrey0117/cloudpipe` |
+| [**MemoryGuy**](https://github.com/Jeffrey0117/MemoryGuy) | Memory leak detection, safe optimization, port dashboard | Electron app |
 
 **ClaudeBot + CloudPipe** = you write code from Telegram, CloudPipe auto-deploys it, and notifies you when it's live. Idea to production without opening a laptop.
 
