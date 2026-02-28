@@ -335,24 +335,31 @@ async function processVoiceInBackground(
   resolveVoice(result.text)
 
   // Background: Gemini refinement → edit message silently
-  if (sentMsg && getVoiceActive(chatId, threadId) < 2) {
+  if (sentMsg) {
     const rawText = result.rawText ?? result.text
-    refineInBackground(telegram, chatId, sentMsg.message_id, rawText)
+    enqueueRefinement(telegram, chatId, sentMsg.message_id, rawText)
   }
 }
 
-/** Fire-and-forget Gemini refinement. Edits message on success, ⚡ stays on failure. */
-function refineInBackground(
+/** Semaphore: max 1 concurrent Gemini refinement to avoid resource contention with Claude CLI. */
+let geminiRunning = false
+
+/** Queue a Gemini refinement. Skips if one is already running — task execution takes priority. */
+function enqueueRefinement(
   telegram: BotContext['telegram'],
   chatId: number,
   messageId: number,
   rawText: string,
 ): void {
+  if (geminiRunning) return  // skip — ⚡ stays, don't compete with Claude CLI
+  geminiRunning = true
   refineWithLLM(rawText).then(({ result: refined }) => {
     if (refined) {
       const formatted = formatAsrText(refined)
       telegram.editMessageText(chatId, messageId, undefined, `🗣 ${formatted}`)
         .catch(() => {})
     }
-  }).catch(() => {})
+  }).catch(() => {}).finally(() => {
+    geminiRunning = false
+  })
 }
