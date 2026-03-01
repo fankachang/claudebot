@@ -34,6 +34,7 @@ import { installCommand } from './commands/install.js'
 import { uninstallCommand } from './commands/uninstall.js'
 import { deployCommand } from './commands/deploy.js'
 import { pairCommand, unpairCommand } from './commands/pair.js'
+import { rpairCommand } from './commands/rpair.js'
 import { grabCommand } from './commands/grab.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
@@ -96,6 +97,7 @@ export const CORE_COMMANDS = [
   { command: 'deploy', description: '部署專案 (commit + push)' },
   { command: 'pair', description: '配對遠端電腦 (code@ip:port)' },
   { command: 'unpair', description: '斷開遠端配對' },
+  { command: 'rpair', description: '重啟遠端 agent' },
   { command: 'grab', description: '從遠端下載檔案' },
   { command: 'help', description: '顯示說明' },
 ] as const
@@ -175,6 +177,7 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     ['deploy', deployCommand],
     ['pair', pairCommand],
     ['unpair', unpairCommand],
+    ['rpair', rpairCommand],
     ['grab', grabCommand],
   ]
   for (const [name, handler] of coreEntries) {
