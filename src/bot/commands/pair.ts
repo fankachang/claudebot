@@ -54,7 +54,7 @@ export async function pairCommand(ctx: BotContext): Promise<void> {
 
   await ctx.reply(
     `🔑 *配對碼: \`${code}\`*\n\n` +
-    `👇 *首次* — 複製貼到對方 terminal:\n` +
+    `👇 *首次* — 複製貼到 terminal:\n` +
     '```\n' +
     `${setupCmd}\n` +
     '```\n\n' +
