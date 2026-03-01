@@ -129,8 +129,8 @@ export function runClaude(options: RunOptions): void {
     parts.push(pinnedContext)
   }
 
-  // Inject remote pairing context — tell Claude to use remote_* tools
-  if (options.chatId) {
+  // Inject remote pairing context — only when REMOTE_ENABLED for this instance
+  if (env.REMOTE_ENABLED && options.chatId) {
     const pairing = getPairing(options.chatId, options.threadId)
     if (pairing?.connected) {
       parts.push(
@@ -195,9 +195,9 @@ export function runClaude(options: RunOptions): void {
     mcpConfigs.push(path.resolve('data', 'mcp-agent-browser.json'))
   }
 
-  // Dynamic remote pairing MCP config
+  // Dynamic remote pairing MCP config — only when REMOTE_ENABLED
   let remoteMcpConfigPath: string | null = null
-  if (options.chatId) {
+  if (env.REMOTE_ENABLED && options.chatId) {
     const pairing = getPairing(options.chatId, options.threadId)
     if (pairing?.connected) {
       const port = getRelayPort() || env.RELAY_PORT

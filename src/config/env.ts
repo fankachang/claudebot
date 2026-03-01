@@ -71,6 +71,10 @@ const envSchema = z.object({
     .transform((val) => val === 'true'),
   BIAODIAN_PATH: z.string().default(''),
   RELAY_PORT: z.coerce.number().int().positive().default(9877),
+  REMOTE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
   TELEGRAM_PROXY: z.string().default(''),
   TELEGRAM_API_BASE: z.string().default(''),
 })
