@@ -3,30 +3,6 @@ import type { BotContext } from '../../types/context.js'
 import { getPairing } from '../../remote/pairing-store.js'
 import { remoteToolCall } from '../../remote/relay-client.js'
 
-/**
- * Resolve a user-supplied path to an absolute path on the remote machine.
- * If the path is already absolute (e.g. C:\Users\...) it is returned as-is.
- * Otherwise we query the remote for its home directory and prepend it.
- */
-async function resolveRemotePath(code: string, inputPath: string): Promise<string> {
-  // Already absolute (Windows drive letter or Unix /)
-  if (/^[a-zA-Z]:/.test(inputPath) || inputPath.startsWith('/')) {
-    return inputPath
-  }
-
-  // Query remote home directory (works on both Windows and Unix)
-  const raw = (
-    await remoteToolCall(code, 'remote_execute_command', {
-      command: 'node -e "console.log(require(\'os\').homedir())"',
-    })
-  ).trim().replace(/\r/g, '')
-  // Take the last non-empty line (skip any stderr noise)
-  const homeDir = raw.split('\n').filter(Boolean).pop() ?? raw
-
-  // Combine: homeDir + relative path
-  return `${homeDir}/${inputPath}`
-}
-
 export async function grabCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
   if (!chatId) return
@@ -54,8 +30,8 @@ export async function grabCommand(ctx: BotContext): Promise<void> {
   }
 
   try {
-    const absolutePath = await resolveRemotePath(pairing.code, remotePath)
-    const result = await remoteToolCall(pairing.code, 'remote_fetch_file', { path: absolutePath })
+    // Path resolution (relative → home dir) is handled by the remote agent's handleFetchFile
+    const result = await remoteToolCall(pairing.code, 'remote_fetch_file', { path: remotePath })
     const parsed = JSON.parse(result) as { name: string; size: number; base64: string }
     const buffer = Buffer.from(parsed.base64, 'base64')
 
