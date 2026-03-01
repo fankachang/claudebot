@@ -36,6 +36,7 @@ Most "Telegram + AI" projects are thin wrappers — paste a prompt, get a respon
 - **Plugins at zero AI cost** — screenshots, dice, timers, system info, web search — instant, free
 - **Multi-bot from one codebase** — run 4+ bots, add new ones with `/newbot` from Telegram
 - **Voice-to-code** — speak into Telegram, local Sherpa-ONNX transcribes, AI executes
+- **Remote pairing** — `/pair` a remote machine, AI reads & writes files there via MCP, per-instance isolation
 
 ## How It Compares
 
