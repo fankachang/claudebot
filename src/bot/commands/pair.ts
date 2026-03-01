@@ -1,3 +1,4 @@
+import { networkInterfaces } from 'node:os'
 import type { BotContext } from '../../types/context.js'
 import {
   createPairingCode,
@@ -6,6 +7,19 @@ import {
 } from '../../remote/pairing-store.js'
 import { getRelayPort } from '../../remote/relay-server.js'
 import { env } from '../../config/env.js'
+
+function getLocalIp(): string {
+  const nets = networkInterfaces()
+  for (const entries of Object.values(nets)) {
+    if (!entries) continue
+    for (const entry of entries) {
+      if (!entry.internal && entry.family === 'IPv4') {
+        return entry.address
+      }
+    }
+  }
+  return '你的IP'
+}
 
 export async function pairCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -29,17 +43,28 @@ export async function pairCommand(ctx: BotContext): Promise<void> {
   // Generate new pairing code
   const code = createPairingCode(chatId, threadId)
   const port = getRelayPort() || env.RELAY_PORT
+  const ip = getLocalIp()
+  const wsUrl = `ws://${ip}:${port}`
+
+  // First-time setup command (clone + install + run)
+  const setupCmd = `git clone https://github.com/Jeffrey0117/ClaudeBot.git && cd ClaudeBot && npm install && npx tsx src/remote/agent.ts ${wsUrl} ${code}`
+
+  // Reconnect command (already has repo)
+  const reconnectCmd = `cd ClaudeBot && npx tsx src/remote/agent.ts ${wsUrl} ${code}`
 
   await ctx.reply(
     `🔑 *配對碼: \`${code}\`*\n\n` +
-    `請對方執行:\n` +
+    `👇 *首次* — 複製貼到對方 terminal:\n` +
     '```\n' +
-    `npx tsx src/remote/agent.ts ws://你的IP:${port} ${code}\n` +
+    `${setupCmd}\n` +
     '```\n\n' +
-    `或在 Electron app 輸入:\n` +
-    `Server: \`ws://你的IP:${port}\`\n` +
-    `配對碼: \`${code}\`\n\n` +
-    `_配對碼 5 分鐘後過期，等待對方連線..._`,
+    `👇 *已裝過* — 直接連:\n` +
+    '```\n' +
+    `${reconnectCmd}\n` +
+    '```\n\n' +
+    `💡 指定專案目錄加在最後面，例如:\n` +
+    `\`...${code} C:\\\\path\\\\to\\\\project\`\n\n` +
+    `_配對碼 5 分鐘後過期_`,
     { parse_mode: 'Markdown' },
   )
 }
