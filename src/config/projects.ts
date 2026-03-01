@@ -11,6 +11,27 @@ const SCAN_TTL_MS = 5_000
 let scanCache: readonly ProjectInfo[] | null = null
 let scanCacheTime = 0
 
+/** Directories to skip when scanning (system/non-project folders) */
+const SKIP_DIRS = new Set([
+  'program files',
+  'program files (x86)',
+  'windows',
+  'users',
+  'perflogs',
+  'recovery',
+  '$recycle.bin',
+  'system volume information',
+  'documents and settings',
+  'msys64',
+  'mingw64',
+  'intel',
+  'amd',
+  'nvidia',
+  'drivers',
+  'boot',
+  'inetpub',
+])
+
 export function scanProjects(): readonly ProjectInfo[] {
   const now = Date.now()
   if (scanCache && now - scanCacheTime < SCAN_TTL_MS) {
@@ -23,9 +44,10 @@ export function scanProjects(): readonly ProjectInfo[] {
     try {
       const entries = readdirSync(baseDir)
       for (const entry of entries) {
+        if (entry.startsWith('.') || SKIP_DIRS.has(entry.toLowerCase())) continue
         const fullPath = join(baseDir, entry)
         try {
-          if (statSync(fullPath).isDirectory() && !entry.startsWith('.')) {
+          if (statSync(fullPath).isDirectory()) {
             results.push({ name: entry, path: fullPath })
           }
         } catch {
