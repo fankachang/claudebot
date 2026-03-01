@@ -129,6 +129,19 @@ export function runClaude(options: RunOptions): void {
     parts.push(pinnedContext)
   }
 
+  // Inject remote pairing context — tell Claude to use remote_* tools
+  if (options.chatId) {
+    const pairing = getPairing(options.chatId, options.threadId)
+    if (pairing?.connected) {
+      parts.push(
+        `[遠端配對模式]\n` +
+        `你目前已配對一台遠端電腦。請使用 remote_* MCP 工具（remote_read_file, remote_write_file, remote_list_directory, remote_search_files, remote_execute_command）來操作遠端檔案系統。\n` +
+        `不要用你自己的 Read/Write/Edit/Bash 工具，那些是操作本地的。使用者要你操作的是遠端電腦。\n` +
+        `[/遠端配對模式]`,
+      )
+    }
+  }
+
   // For short or affirmative replies, inject last response tail so Claude
   // knows what the user is referring to after context compression.
   // Triggers on: very short messages (≤15 chars) OR affirmative phrases (≤80 chars).
