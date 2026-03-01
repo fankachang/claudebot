@@ -72,14 +72,14 @@ function isRateLimited(ip: string): boolean {
 }
 
 function handleAgentRegister(ws: WebSocket, code: string, ip: string): void {
-  if (isRateLimited(ip)) {
-    send(ws, { type: 'error', error: 'Too many attempts. Try again later.' })
-    ws.close()
-    return
-  }
-
   const session = findByCode(code)
   if (!session) {
+    // Only rate-limit INVALID codes — valid reconnects should always work
+    if (isRateLimited(ip)) {
+      send(ws, { type: 'error', error: 'Too many attempts. Try again later.' })
+      ws.close()
+      return
+    }
     send(ws, { type: 'error', error: 'Invalid pairing code' })
     ws.close()
     return

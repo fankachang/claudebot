@@ -49,8 +49,8 @@ export async function pairCommand(ctx: BotContext): Promise<void> {
   // First-time setup command (clone + install + run)
   const setupCmd = `git clone https://github.com/Jeffrey0117/ClaudeBot.git && cd ClaudeBot && npm install && npx tsx src/remote/agent.ts ${wsUrl} ${code}`
 
-  // Reconnect command (already has repo)
-  const reconnectCmd = `cd ClaudeBot && npx tsx src/remote/agent.ts ${wsUrl} ${code}`
+  // Reconnect command (already in ClaudeBot dir)
+  const reconnectCmd = `npx tsx src/remote/agent.ts ${wsUrl} ${code}`
 
   await ctx.reply(
     `🔑 *配對碼: \`${code}\`*\n\n` +
