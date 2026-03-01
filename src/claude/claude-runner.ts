@@ -9,6 +9,8 @@ import { formatPinsForPrompt } from '../bot/context-pin-store.js'
 import { getLastResponse } from '../bot/last-response-store.js'
 import { getSystemPrompt } from '../utils/system-prompt.js'
 import { env } from '../config/env.js'
+import { getPairing } from '../remote/pairing-store.js'
+import { generateRemoteMcpConfig, cleanupRemoteMcpConfig } from '../remote/mcp-config-generator.js'
 
 /** Detect affirmative/agreement replies that reference the previous message. */
 const AFFIRMATIVE_RE = /^(好|可以|沒問題|沒差|OK|ok|Yes|yes|對|嗯|行|做吧|來吧|就這樣|同意|贊成|go|就醬|開始|動手|沒錯|是的|確定|sure|yep|yeah|做啊|加吧|弄吧|改吧|要|proceed|continue|繼續)/i
@@ -29,6 +31,8 @@ interface RunOptions {
   readonly model: ClaudeModel
   readonly sessionId: string | null
   readonly imagePaths: readonly string[]
+  readonly chatId?: number
+  readonly threadId?: number
   readonly onTextDelta: OnTextDelta
   readonly onToolUse: OnToolUse
   readonly onResult: OnResult
@@ -176,6 +180,17 @@ export function runClaude(options: RunOptions): void {
   if (env.MCP_AGENT_BROWSER) {
     mcpConfigs.push(path.resolve('data', 'mcp-agent-browser.json'))
   }
+
+  // Dynamic remote pairing MCP config
+  let remoteMcpConfigPath: string | null = null
+  if (options.chatId) {
+    const pairing = getPairing(options.chatId, options.threadId)
+    if (pairing) {
+      remoteMcpConfigPath = generateRemoteMcpConfig(pairing.wsUrl, pairing.code)
+      mcpConfigs.push(remoteMcpConfigPath)
+    }
+  }
+
   if (mcpConfigs.length > 0) {
     args.push('--mcp-config', ...mcpConfigs)
   }
@@ -244,6 +259,7 @@ export function runClaude(options: RunOptions): void {
   proc.on('close', (code) => {
     console.log('[claude-runner] process closed, code:', code, 'project:', validatedPath, 'cancelled:', active.cancelled)
     activeProcesses.delete(validatedPath)
+    if (remoteMcpConfigPath) cleanupRemoteMcpConfig(remoteMcpConfigPath)
 
     // If cancelled or result already received, don't fire more callbacks
     if (active.cancelled || resultReceived) return

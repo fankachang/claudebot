@@ -17,6 +17,8 @@ export const claudeAdapter: AIRunner = {
       model: options.model as ClaudeModel,
       sessionId: options.sessionId,
       imagePaths: options.imagePaths,
+      chatId: options.chatId,
+      threadId: options.threadId,
       onTextDelta: options.onTextDelta,
       onToolUse: options.onToolUse,
       onResult: (result) => {

@@ -489,6 +489,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         model: resolvedAI.model,
         sessionId: item.sessionId,
         imagePaths: item.imagePaths,
+        chatId: item.chatId,
         onTextDelta: (delta, acc) => {
           ctx.accumulated = acc
           if (dashCmdId) {

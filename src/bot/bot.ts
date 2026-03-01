@@ -33,6 +33,7 @@ import { storeCommand } from './commands/store.js'
 import { installCommand } from './commands/install.js'
 import { uninstallCommand } from './commands/uninstall.js'
 import { deployCommand } from './commands/deploy.js'
+import { pairCommand, unpairCommand } from './commands/pair.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
@@ -92,6 +93,8 @@ export const CORE_COMMANDS = [
   { command: 'context', description: '上下文管理 (pin/list/clear)' },
   { command: 'restart', description: '重啟 Bot (all=全部)' },
   { command: 'deploy', description: '部署專案 (commit + push)' },
+  { command: 'pair', description: '配對遠端電腦 (code@ip:port)' },
+  { command: 'unpair', description: '斷開遠端配對' },
   { command: 'help', description: '顯示說明' },
 ] as const
 
@@ -168,6 +171,8 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     ['context', contextCommand],
     ['reload', reloadCommand],
     ['deploy', deployCommand],
+    ['pair', pairCommand],
+    ['unpair', unpairCommand],
   ]
   for (const [name, handler] of coreEntries) {
     bot.command(name, handler)
