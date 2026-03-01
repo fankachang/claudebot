@@ -167,3 +167,9 @@ export function getCodeForChat(
   const session = store.pairings[sessionKey(chatId, threadId)]
   return session?.code ?? null
 }
+
+/** Return all pairings that were connected (for restart notifications). */
+export function getAllConnectedPairings(): readonly PairingSession[] {
+  const store = readStore()
+  return Object.values(store.pairings).filter((s) => s.connected)
+}

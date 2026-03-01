@@ -1,12 +1,14 @@
 /**
  * After bot restarts, notify users who had an active project
- * with a "Continue?" inline button so they can resume seamlessly.
+ * or an active remote pairing so they can resume seamlessly.
  */
 
 import type { Telegraf } from 'telegraf'
 import type { BotContext } from '../types/context.js'
 import { getActiveUserStates } from './state.js'
 import { formatAILabel } from '../ai/types.js'
+import { getAllConnectedPairings } from '../remote/pairing-store.js'
+import { env } from '../config/env.js'
 
 const NOTIFY_DELAY_MS = 3_000
 
@@ -20,16 +22,18 @@ function deriveBotLabel(): string {
 
 export function scheduleRestartNotifications(bot: Telegraf<BotContext>): void {
   setTimeout(() => {
-    const states = getActiveUserStates()
     const label = deriveBotLabel()
+    const notifiedChats = new Set<number>()
 
+    // 1) Notify users with an active local project
+    const states = getActiveUserStates()
     for (const [key, state] of states) {
       if (!state.selectedProject) continue
 
-      // key format: "chatId" or "chatId:threadId"
       const chatId = parseInt(key.split(':')[0], 10)
       if (isNaN(chatId) || chatId === 0) continue
 
+      notifiedChats.add(chatId)
       const project = state.selectedProject.name
       const ai = formatAILabel(state.ai)
 
@@ -40,6 +44,23 @@ export function scheduleRestartNotifications(bot: Telegraf<BotContext>): void {
       ).catch((err) => {
         console.error(`[restart-notify] Failed to notify ${chatId}:`, err.message)
       })
+    }
+
+    // 2) For REMOTE_ENABLED bots, also notify users with active pairings
+    if (env.REMOTE_ENABLED) {
+      const pairings = getAllConnectedPairings()
+      for (const pairing of pairings) {
+        if (notifiedChats.has(pairing.chatId)) continue
+        notifiedChats.add(pairing.chatId)
+
+        bot.telegram.sendMessage(
+          pairing.chatId,
+          `🔄 ${label} 已重啟，遠端配對等待自動重連…`,
+          { parse_mode: 'Markdown' },
+        ).catch((err) => {
+          console.error(`[restart-notify] Failed to notify pairing ${pairing.chatId}:`, err.message)
+        })
+      }
     }
   }, NOTIFY_DELAY_MS)
 }
