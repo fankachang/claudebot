@@ -53,6 +53,10 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((val) => val === 'true'),
+  MCP_AGENT_BROWSER: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
   PLUGIN_REGISTRY_URL: z
     .string()
     .default('https://raw.githubusercontent.com/Jeffrey0117/claudebot-plugins/master/registry.json'),

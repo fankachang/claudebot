@@ -169,9 +169,15 @@ export function runClaude(options: RunOptions): void {
     args.push('--resume', sessionId)
   }
 
+  const mcpConfigs: string[] = []
   if (env.MCP_BROWSER) {
-    const mcpConfig = path.resolve('data', 'mcp-browser.json')
-    args.push('--mcp-config', mcpConfig)
+    mcpConfigs.push(path.resolve('data', 'mcp-browser.json'))
+  }
+  if (env.MCP_AGENT_BROWSER) {
+    mcpConfigs.push(path.resolve('data', 'mcp-agent-browser.json'))
+  }
+  if (mcpConfigs.length > 0) {
+    args.push('--mcp-config', ...mcpConfigs)
   }
 
   console.log('[claude-runner] spawning claude, cwd:', validatedPath)
