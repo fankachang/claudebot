@@ -1,0 +1,164 @@
+/**
+ * Shared tool dispatch handlers for remote agent operations.
+ * Used by both CLI agent (agent.ts) and Electron app.
+ */
+
+import { readFile, writeFile, readdir, stat, mkdir, open } from 'node:fs/promises'
+import { exec } from 'node:child_process'
+import { resolve, join, relative, sep } from 'node:path'
+
+const MAX_FILE_SIZE = 100 * 1024
+const EXEC_TIMEOUT_MS = 30_000
+const MAX_SEARCH_RESULTS = 50
+const IS_WIN = process.platform === 'win32'
+
+export function createPathValidator(baseDir: string): (targetPath: string) => string {
+  const normalizedBase = resolve(baseDir)
+  const baseLower = IS_WIN ? normalizedBase.toLowerCase() : normalizedBase
+  return (targetPath: string): string => {
+    // Block absolute paths and UNC paths
+    if (/^[a-zA-Z]:/.test(targetPath) || targetPath.startsWith('\\\\') || targetPath.startsWith('//')) {
+      throw new Error('Absolute paths not allowed')
+    }
+    const resolved = resolve(normalizedBase, targetPath)
+    const cmp = IS_WIN ? resolved.toLowerCase() : resolved
+    const cmpBase = baseLower
+    const baseWithSep = cmpBase + sep
+    if (!cmp.startsWith(baseWithSep) && cmp !== cmpBase) {
+      throw new Error('Path traversal blocked')
+    }
+    // Double-check via relative()
+    const rel = relative(normalizedBase, resolved)
+    if (rel.startsWith('..')) {
+      throw new Error('Path traversal blocked')
+    }
+    return resolved
+  }
+}
+
+async function handleReadFile(args: Record<string, unknown>, validatePath: (p: string) => string): Promise<string> {
+  const filePath = validatePath(String(args.path))
+  const stats = await stat(filePath)
+  if (stats.size > MAX_FILE_SIZE) {
+    // Read only the first MAX_FILE_SIZE bytes via fd to avoid OOM on huge files
+    const fh = await open(filePath, 'r')
+    try {
+      const buffer = Buffer.alloc(MAX_FILE_SIZE)
+      const { bytesRead } = await fh.read(buffer, 0, MAX_FILE_SIZE, 0)
+      return buffer.toString('utf-8', 0, bytesRead) +
+        `\n\n[truncated at ${MAX_FILE_SIZE} bytes, total: ${stats.size}]`
+    } finally {
+      await fh.close()
+    }
+  }
+  return await readFile(filePath, 'utf-8')
+}
+
+async function handleWriteFile(
+  args: Record<string, unknown>,
+  validatePath: (p: string) => string,
+  baseDir: string,
+): Promise<string> {
+  const filePath = validatePath(String(args.path))
+  const content = String(args.content)
+  const dir = resolve(filePath, '..')
+  await mkdir(dir, { recursive: true })
+  await writeFile(filePath, content, 'utf-8')
+  return `Written ${content.length} bytes to ${relative(baseDir, filePath)}`
+}
+
+async function handleListDirectory(args: Record<string, unknown>, validatePath: (p: string) => string): Promise<string> {
+  const dirPath = validatePath(String(args.path))
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  const lines = entries.map((entry) => {
+    const type = entry.isDirectory() ? 'dir' : 'file'
+    return `[${type}] ${entry.name}`
+  })
+  return lines.join('\n') || '(empty directory)'
+}
+
+function matchGlob(name: string, pattern: string): boolean {
+  if (pattern === '*') return true
+  if (pattern.startsWith('*.')) return name.endsWith(pattern.slice(1))
+  return name.includes(pattern)
+}
+
+async function handleSearchFiles(
+  args: Record<string, unknown>,
+  validatePath: (p: string) => string,
+  baseDir: string,
+): Promise<string> {
+  const searchPath = validatePath(String(args.path))
+  const pattern = String(args.pattern || '*')
+  const contentPattern = args.contentPattern ? String(args.contentPattern) : undefined
+  const results: string[] = []
+
+  async function walk(dir: string): Promise<void> {
+    if (results.length >= MAX_SEARCH_RESULTS) return
+    try {
+      const entries = await readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (results.length >= MAX_SEARCH_RESULTS) break
+        const fullPath = join(dir, entry.name)
+        if (entry.isDirectory() && (entry.name === 'node_modules' || entry.name === '.git')) continue
+        if (entry.isDirectory()) {
+          await walk(fullPath)
+        } else if (matchGlob(entry.name, pattern)) {
+          if (contentPattern) {
+            try {
+              const content = await readFile(fullPath, 'utf-8')
+              if (content.includes(contentPattern)) {
+                results.push(relative(baseDir, fullPath))
+              }
+            } catch { /* skip binary */ }
+          } else {
+            results.push(relative(baseDir, fullPath))
+          }
+        }
+      }
+    } catch { /* skip inaccessible */ }
+  }
+
+  await walk(searchPath)
+  const suffix = results.length >= MAX_SEARCH_RESULTS ? `\n(limited to ${MAX_SEARCH_RESULTS} results)` : ''
+  return results.join('\n') + suffix || '(no matches)'
+}
+
+async function handleExecuteCommand(
+  args: Record<string, unknown>,
+  validatePath: (p: string) => string,
+  baseDir: string,
+): Promise<string> {
+  const command = String(args.command)
+  const cwd = args.cwd ? validatePath(String(args.cwd)) : baseDir
+  return new Promise((res) => {
+    exec(command, { cwd, timeout: EXEC_TIMEOUT_MS, maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
+      const parts: string[] = []
+      if (stdout.trim()) parts.push(stdout.trim())
+      if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`)
+      if (error && !stdout && !stderr) parts.push(`Error: ${error.message}`)
+      res(parts.join('\n\n') || '(no output)')
+    })
+  })
+}
+
+export interface ToolDispatcher {
+  dispatch(tool: string, args: Record<string, unknown>): Promise<string>
+}
+
+export function createToolDispatcher(baseDir: string): ToolDispatcher {
+  const validatePath = createPathValidator(baseDir)
+
+  return {
+    async dispatch(tool: string, args: Record<string, unknown>): Promise<string> {
+      switch (tool) {
+        case 'remote_read_file': return handleReadFile(args, validatePath)
+        case 'remote_write_file': return handleWriteFile(args, validatePath, baseDir)
+        case 'remote_list_directory': return handleListDirectory(args, validatePath)
+        case 'remote_search_files': return handleSearchFiles(args, validatePath, baseDir)
+        case 'remote_execute_command': return handleExecuteCommand(args, validatePath, baseDir)
+        default: throw new Error(`Unknown tool: ${tool}`)
+      }
+    },
+  }
+}

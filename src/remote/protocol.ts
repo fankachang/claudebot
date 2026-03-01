@@ -1,25 +1,38 @@
 /**
- * Shared wire protocol for WebSocket communication between
- * the MCP proxy (A-side) and the remote agent (N-side).
+ * Shared wire protocol for WebSocket communication through
+ * the relay server between MCP proxy (A-side) and remote agent (N-side).
  */
 
-// --- Pairing handshake ---
+// --- Relay handshake: Agent (N-side) registers with relay ---
 
-export interface PairRequest {
-  readonly type: 'pair'
+export interface AgentRegister {
+  readonly type: 'agent_register'
   readonly code: string
 }
 
-export interface PairOk {
-  readonly type: 'pair_ok'
+export interface AgentRegistered {
+  readonly type: 'agent_registered'
 }
 
-export interface PairFail {
-  readonly type: 'pair_fail'
+// --- Relay handshake: Proxy (A-side) connects through relay ---
+
+export interface ProxyConnect {
+  readonly type: 'proxy_connect'
+  readonly code: string
+}
+
+export interface ProxyConnected {
+  readonly type: 'proxy_connected'
+}
+
+// --- Error (used by relay for any handshake failure) ---
+
+export interface RelayError {
+  readonly type: 'error'
   readonly error: string
 }
 
-// --- Tool call forwarding ---
+// --- Tool call forwarding (unchanged, used after handshake) ---
 
 export interface ToolCallRequest {
   readonly id: number
@@ -42,5 +55,8 @@ export interface ToolCallError {
 
 // --- Union types ---
 
-export type ProxyMessage = PairRequest | ToolCallRequest
-export type AgentResponse = PairOk | PairFail | ToolCallResult | ToolCallError
+/** Messages the relay receives */
+export type RelayInbound = AgentRegister | ProxyConnect | ToolCallRequest | ToolCallResult | ToolCallError
+
+/** Messages the relay sends back */
+export type RelayOutbound = AgentRegistered | ProxyConnected | RelayError | ToolCallRequest | ToolCallResult | ToolCallError

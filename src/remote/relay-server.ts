@@ -1,0 +1,234 @@
+/**
+ * WebSocket relay server (A-side).
+ *
+ * Accepts two types of connections:
+ * 1. Remote agents (N-side) — register with a pairing code
+ * 2. MCP proxies — connect with a code to reach the paired agent
+ *
+ * The relay forwards tool_call/tool_result messages between proxy and agent.
+ */
+
+import { WebSocketServer, type WebSocket } from 'ws'
+import {
+  findByCode,
+  markConnected,
+  markDisconnected,
+} from './pairing-store.js'
+import type {
+  RelayInbound,
+  AgentRegistered,
+  ProxyConnected,
+  RelayError,
+  ToolCallRequest,
+  ToolCallResult,
+  ToolCallError,
+} from './protocol.js'
+
+interface PairedAgent {
+  readonly ws: WebSocket
+  readonly code: string
+  readonly connectedAt: number
+}
+
+interface PairedProxy {
+  readonly ws: WebSocket
+  readonly code: string
+}
+
+/** Active agents keyed by pairing code */
+const agents = new Map<string, PairedAgent>()
+
+/** Active proxies keyed by pairing code */
+const proxies = new Map<string, Set<PairedProxy>>()
+
+/** Route tool results to the proxy that sent the request: code → (requestId → proxy ws) */
+const requestOrigins = new Map<string, Map<number, WebSocket>>()
+
+/** Rate limiting: IP → { attempts, lastAttempt } */
+const rateLimits = new Map<string, { attempts: number; resetAt: number }>()
+const MAX_ATTEMPTS_PER_MINUTE = 5
+
+let relayPort = 0
+
+export function getRelayPort(): number {
+  return relayPort
+}
+
+function send(ws: WebSocket, msg: AgentRegistered | ProxyConnected | RelayError | ToolCallRequest | ToolCallResult | ToolCallError): void {
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(msg))
+  }
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimits.get(ip)
+  if (!entry || now > entry.resetAt) {
+    rateLimits.set(ip, { attempts: 1, resetAt: now + 60_000 })
+    return false
+  }
+  entry.attempts++
+  return entry.attempts > MAX_ATTEMPTS_PER_MINUTE
+}
+
+function handleAgentRegister(ws: WebSocket, code: string, ip: string): void {
+  if (isRateLimited(ip)) {
+    send(ws, { type: 'error', error: 'Too many attempts. Try again later.' })
+    ws.close()
+    return
+  }
+
+  const session = findByCode(code)
+  if (!session) {
+    send(ws, { type: 'error', error: 'Invalid pairing code' })
+    ws.close()
+    return
+  }
+
+  // Disconnect previous agent for this code if any
+  const prev = agents.get(code)
+  if (prev && prev.ws !== ws) {
+    prev.ws.close()
+  }
+
+  agents.set(code, { ws, code, connectedAt: Date.now() })
+
+  const remoteAddr = ip
+  markConnected(code, remoteAddr)
+
+  send(ws, { type: 'agent_registered' })
+  console.log(`[relay] Agent registered: code=${code} from=${remoteAddr}`)
+}
+
+function handleProxyConnect(ws: WebSocket, code: string): void {
+  const agent = agents.get(code)
+  if (!agent || agent.ws.readyState !== agent.ws.OPEN) {
+    send(ws, { type: 'error', error: 'No agent connected for this code' })
+    ws.close()
+    return
+  }
+
+  const proxyEntry: PairedProxy = { ws, code }
+  if (!proxies.has(code)) {
+    proxies.set(code, new Set())
+  }
+  proxies.get(code)!.add(proxyEntry)
+
+  // Ensure request origin tracking map exists
+  if (!requestOrigins.has(code)) {
+    requestOrigins.set(code, new Map())
+  }
+
+  send(ws, { type: 'proxy_connected' })
+  console.log(`[relay] Proxy connected: code=${code}`)
+
+  // Forward messages from proxy → agent (with origin tracking)
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString()) as RelayInbound
+      if (msg.type === 'tool_call') {
+        const origins = requestOrigins.get(code)
+        if (origins) {
+          origins.set((msg as ToolCallRequest).id, ws)
+        }
+        send(agent.ws, msg)
+      }
+    } catch {
+      // ignore malformed
+    }
+  })
+
+  ws.on('close', () => {
+    proxies.get(code)?.delete(proxyEntry)
+  })
+}
+
+function handleAgentMessage(_ws: WebSocket, code: string, msg: RelayInbound): void {
+  // Route tool_result / tool_error to the ORIGINATING proxy only
+  if (msg.type === 'tool_result' || msg.type === 'tool_error') {
+    const origins = requestOrigins.get(code)
+    if (origins) {
+      const originProxy = origins.get(msg.id)
+      if (originProxy) {
+        send(originProxy, msg)
+        origins.delete(msg.id)
+      }
+    }
+  }
+}
+
+export function startRelayServer(port: number): void {
+  relayPort = port
+  const wss = new WebSocketServer({ port })
+
+  wss.on('connection', (ws, req) => {
+    let role: 'unknown' | 'agent' | 'proxy' = 'unknown'
+    let assignedCode = ''
+    const ip = req.socket.remoteAddress ?? 'unknown'
+
+    ws.on('message', (raw) => {
+      let msg: RelayInbound
+      try {
+        msg = JSON.parse(raw.toString()) as RelayInbound
+      } catch {
+        send(ws, { type: 'error', error: 'Invalid JSON' })
+        return
+      }
+
+      // First message determines role
+      if (role === 'unknown') {
+        if (msg.type === 'agent_register') {
+          role = 'agent'
+          assignedCode = msg.code
+          handleAgentRegister(ws, msg.code, ip)
+          return
+        }
+        if (msg.type === 'proxy_connect') {
+          role = 'proxy'
+          assignedCode = msg.code
+          handleProxyConnect(ws, msg.code)
+          return
+        }
+        send(ws, { type: 'error', error: 'First message must be agent_register or proxy_connect' })
+        ws.close()
+        return
+      }
+
+      // Subsequent messages — proxy handled by its own listener
+      if (role === 'proxy') return
+
+      if (role === 'agent') {
+        handleAgentMessage(ws, assignedCode, msg)
+      }
+    })
+
+    ws.on('close', () => {
+      if (role === 'agent' && assignedCode) {
+        const current = agents.get(assignedCode)
+        if (current?.ws === ws) {
+          agents.delete(assignedCode)
+          markDisconnected(assignedCode)
+          // Clean up request origins for this code
+          requestOrigins.delete(assignedCode)
+          console.log(`[relay] Agent disconnected: code=${assignedCode}`)
+        }
+      }
+    })
+
+    ws.on('error', (err) => {
+      console.error(`[relay] WebSocket error (${role}):`, err.message)
+    })
+  })
+
+  // Periodic cleanup of stale rate limit entries (every 5 min)
+  setInterval(() => {
+    const now = Date.now()
+    for (const [ip, entry] of rateLimits) {
+      if (now > entry.resetAt) {
+        rateLimits.delete(ip)
+      }
+    }
+  }, 5 * 60_000)
+
+  console.log(`[relay] Server listening on port ${port}`)
+}

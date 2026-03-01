@@ -18,7 +18,9 @@
     "dashboard": "tsx src/dashboard/start.ts",
     "setup": "tsx src/setup.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "remote": "tsx src/remote/agent.ts",
+    "electron:dev": "electron dist/remote/electron/main.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
@@ -34,6 +36,8 @@
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^22.10.0",
     "@types/ws": "^8.18.1",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

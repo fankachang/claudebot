@@ -1,7 +1,7 @@
 /**
  * Generates and cleans up temporary MCP config JSON files
  * for remote pairing sessions.  Each Claude CLI invocation
- * gets its own temp config with the WebSocket URL baked in.
+ * gets its own temp config with the relay port + code baked in.
  */
 
 import { writeFileSync, unlinkSync, mkdirSync } from 'node:fs'
@@ -14,7 +14,7 @@ function ensureDir(): void {
   mkdirSync(TEMP_DIR, { recursive: true })
 }
 
-export function generateRemoteMcpConfig(wsUrl: string, code: string): string {
+export function generateRemoteMcpConfig(relayPort: number, code: string): string {
   ensureDir()
 
   const id = randomBytes(4).toString('hex')
@@ -26,7 +26,7 @@ export function generateRemoteMcpConfig(wsUrl: string, code: string): string {
     mcpServers: {
       'remote-fs': {
         command: 'npx',
-        args: ['tsx', proxyScript, '--ws-url', wsUrl, '--code', code],
+        args: ['tsx', proxyScript, '--relay-port', String(relayPort), '--code', code],
       },
     },
   }

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self' 'unsafe-inline'">
+  <title>ClaudeBot Remote Agent</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>ClaudeBot Remote Agent</h1>
+
+  <div class="status-bar">
+    <span class="status-dot disconnected" id="status-dot"></span>
+    <span id="status-text">Disconnected</span>
+  </div>
+
+  <div class="form-group">
+    <label for="relay-url">Server</label>
+    <input type="text" id="relay-url" placeholder="ws://1.2.3.4:9877" value="ws://localhost:9877">
+  </div>
+
+  <div class="form-group">
+    <label for="pairing-code">Pairing Code</label>
+    <input type="text" id="pairing-code" placeholder="6-digit code" maxlength="6" autocomplete="off">
+  </div>
+
+  <div class="form-group">
+    <label for="base-dir">Working Directory (optional)</label>
+    <input type="text" id="base-dir" placeholder="Leave empty for current directory">
+  </div>
+
+  <div class="button-row">
+    <button id="btn-connect">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+  </div>
+
+  <div class="log-panel" id="log-panel"></div>
+
+  <script>
+    const api = window.electronAPI
+    const logPanel = document.getElementById('log-panel')
+    const statusDot = document.getElementById('status-dot')
+    const statusText = document.getElementById('status-text')
+    const btnConnect = document.getElementById('btn-connect')
+    const btnDisconnect = document.getElementById('btn-disconnect')
+    const inputUrl = document.getElementById('relay-url')
+    const inputCode = document.getElementById('pairing-code')
+    const inputDir = document.getElementById('base-dir')
+
+    const STATUS_LABELS = {
+      disconnected: 'Disconnected',
+      connecting: 'Connecting...',
+      connected: 'Connected',
+    }
+
+    function appendLog(message) {
+      const entry = document.createElement('div')
+      entry.className = 'log-entry'
+      if (message.startsWith('[tool]')) entry.className += ' tool'
+      else if (message.includes('error') || message.includes('Error')) entry.className += ' error'
+      else if (message.includes('Connected and paired')) entry.className += ' success'
+      entry.textContent = message
+      logPanel.appendChild(entry)
+      logPanel.scrollTop = logPanel.scrollHeight
+    }
+
+    api.onLog((message) => {
+      appendLog(message)
+    })
+
+    api.onStatus((status) => {
+      statusDot.className = 'status-dot ' + status
+      statusText.textContent = STATUS_LABELS[status] || status
+      btnConnect.disabled = status !== 'disconnected'
+      btnDisconnect.disabled = status === 'disconnected'
+      inputUrl.disabled = status !== 'disconnected'
+      inputCode.disabled = status !== 'disconnected'
+      inputDir.disabled = status !== 'disconnected'
+    })
+
+    btnConnect.addEventListener('click', () => {
+      const url = inputUrl.value.trim()
+      const code = inputCode.value.trim()
+      if (!url || !code) {
+        appendLog('Please enter server URL and pairing code.')
+        return
+      }
+      api.connect(url, code, inputDir.value.trim())
+    })
+
+    btnDisconnect.addEventListener('click', () => {
+      api.disconnect()
+    })
+
+    // Auto-focus pairing code input
+    inputCode.focus()
+  </script>
+</body>
+</html>

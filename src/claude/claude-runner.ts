@@ -10,6 +10,7 @@ import { getLastResponse } from '../bot/last-response-store.js'
 import { getSystemPrompt } from '../utils/system-prompt.js'
 import { env } from '../config/env.js'
 import { getPairing } from '../remote/pairing-store.js'
+import { getRelayPort } from '../remote/relay-server.js'
 import { generateRemoteMcpConfig, cleanupRemoteMcpConfig } from '../remote/mcp-config-generator.js'
 
 /** Detect affirmative/agreement replies that reference the previous message. */
@@ -185,8 +186,9 @@ export function runClaude(options: RunOptions): void {
   let remoteMcpConfigPath: string | null = null
   if (options.chatId) {
     const pairing = getPairing(options.chatId, options.threadId)
-    if (pairing) {
-      remoteMcpConfigPath = generateRemoteMcpConfig(pairing.wsUrl, pairing.code)
+    if (pairing?.connected) {
+      const port = getRelayPort() || env.RELAY_PORT
+      remoteMcpConfigPath = generateRemoteMcpConfig(port, pairing.code)
       mcpConfigs.push(remoteMcpConfigPath)
     }
   }
