@@ -37,7 +37,7 @@ function parseArg(flag: string): string {
 
 const RELAY_PORT = parseInt(parseArg('--relay-port'), 10)
 const PAIRING_CODE = parseArg('--code')
-const TOOL_TIMEOUT_MS = 30_000
+const TOOL_TIMEOUT_MS = 120_000
 const CONNECT_TIMEOUT_MS = 10_000
 
 // --- WebSocket state ---
@@ -115,7 +115,9 @@ function connectToRelay(): Promise<void> {
 
 // --- Forward tool call ---
 
-function forwardToolCall(tool: string, args: Record<string, unknown>): Promise<string> {
+function forwardToolCall(tool: string, args: Record<string, unknown>, timeoutMs?: number): Promise<string> {
+  const effectiveTimeout = timeoutMs ?? TOOL_TIMEOUT_MS
+
   return new Promise((resolve, reject) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       reject(new Error('Not connected to relay'))
@@ -125,8 +127,8 @@ function forwardToolCall(tool: string, args: Record<string, unknown>): Promise<s
     const id = requestId++
     const timer = setTimeout(() => {
       pendingRequests.delete(id)
-      reject(new Error(`Tool call timeout (${TOOL_TIMEOUT_MS}ms)`))
-    }, TOOL_TIMEOUT_MS)
+      reject(new Error(`Tool call timeout (${effectiveTimeout}ms)`))
+    }, effectiveTimeout)
 
     pendingRequests.set(id, { resolve, reject, timer })
 
@@ -146,7 +148,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'remote_read_file',
-      description: 'Read a file on the remote computer. Returns file content (truncated at 100KB).',
+      description: 'Read a file on the remote computer. Returns file content (truncated at 500KB).',
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -193,14 +195,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'remote_execute_command',
-      description: 'Execute a shell command on the remote computer. Returns stdout + stderr.',
+      description: 'Execute a shell command on the remote computer. Returns stdout + stderr. Supports up to 5 min timeout.',
       inputSchema: {
         type: 'object' as const,
         properties: {
           command: { type: 'string', description: 'Shell command to execute' },
           cwd: { type: 'string', description: 'Optional working directory (relative to remote base dir)' },
+          timeout: { type: 'number', description: 'Optional timeout in ms (default 120000, max 300000)' },
         },
         required: ['command'],
+      },
+    },
+    {
+      name: 'remote_grep',
+      description: 'Fast content search (regex) on the remote computer. Auto-excludes node_modules/.git/dist/.next. Returns matching lines with file:line format.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          pattern: { type: 'string', description: 'Search pattern (regex supported)' },
+          path: { type: 'string', description: 'Directory to search in (default: working dir)' },
+          include: { type: 'string', description: 'File pattern filter (e.g. "*.ts", "*.json")' },
+          maxResults: { type: 'number', description: 'Max results (default 100, max 200)' },
+        },
+        required: ['pattern'],
+      },
+    },
+    {
+      name: 'remote_system_info',
+      description: 'Get remote system information: OS, user, disk, memory, network.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {},
+      },
+    },
+    {
+      name: 'remote_project_overview',
+      description: 'Get a comprehensive project overview: directory tree (2 levels), CLAUDE.md, package.json, README.md, git status.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          path: { type: 'string', description: 'Project path (default: working dir)' },
+        },
+      },
+    },
+    {
+      name: 'remote_fetch_file',
+      description: 'Download a file from the remote computer as base64. Max 20MB. Relative paths resolve from home dir.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          path: { type: 'string', description: 'File path (absolute or relative to home dir)' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'remote_push_file',
+      description: 'Upload a file to the remote computer from base64 data. Max 20MB.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          path: { type: 'string', description: 'Destination file path on remote' },
+          base64: { type: 'string', description: 'Base64-encoded file content' },
+        },
+        required: ['path', 'base64'],
       },
     },
   ],
@@ -210,8 +268,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
   const a = (args ?? {}) as Record<string, unknown>
 
+  // Use longer timeout for execute_command if custom timeout specified
+  const customTimeout = name === 'remote_execute_command' && a.timeout
+    ? Math.min(Number(a.timeout) + 5_000, 305_000) // agent timeout + 5s buffer
+    : undefined
+
   try {
-    const result = await forwardToolCall(name, a)
+    const result = await forwardToolCall(name, a, customTimeout)
     return { content: [{ type: 'text', text: result }] }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

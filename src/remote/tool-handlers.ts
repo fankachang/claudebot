@@ -4,13 +4,14 @@
  */
 
 import { readFile, writeFile, readdir, stat, mkdir, open } from 'node:fs/promises'
-import { exec } from 'node:child_process'
+import { exec, spawn } from 'node:child_process'
 import { resolve, join, relative, sep, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 
 const MAX_FILE_SIZE = 500 * 1024
 const MAX_TRANSFER_SIZE = 20 * 1024 * 1024 // 20 MB for file transfer
-const EXEC_TIMEOUT_MS = 30_000
+const EXEC_TIMEOUT_MS = 120_000
+const MAX_OUTPUT_SIZE = 1024 * 1024 // 1 MB output cap
 const MAX_SEARCH_RESULTS = 50
 const IS_WIN = process.platform === 'win32'
 
@@ -141,6 +142,10 @@ async function handleSearchFiles(
   return results.join('\n') + suffix || '(no matches)'
 }
 
+/**
+ * Execute a shell command using spawn for streaming output.
+ * Supports up to 120s timeout and 1MB output cap.
+ */
 async function handleExecuteCommand(
   args: Record<string, unknown>,
   validatePath: (p: string) => string,
@@ -148,13 +153,56 @@ async function handleExecuteCommand(
 ): Promise<string> {
   const command = String(args.command)
   const cwd = args.cwd ? validatePath(String(args.cwd)) : baseDir
+  const timeoutMs = Math.min(
+    Math.max(Number(args.timeout) || EXEC_TIMEOUT_MS, 5_000),
+    300_000, // hard cap 5 minutes
+  )
+
   return new Promise((res) => {
-    exec(command, { cwd, timeout: EXEC_TIMEOUT_MS, maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
+    const chunks: Buffer[] = []
+    let totalSize = 0
+    let truncated = false
+
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM')
+      setTimeout(() => {
+        if (!child.killed) child.kill('SIGKILL')
+      }, 3_000)
+    }, timeoutMs)
+
+    function collectChunk(chunk: Buffer): void {
+      if (truncated) return
+      totalSize += chunk.length
+      if (totalSize > MAX_OUTPUT_SIZE) {
+        truncated = true
+        chunks.push(chunk.subarray(0, chunk.length - (totalSize - MAX_OUTPUT_SIZE)))
+      } else {
+        chunks.push(chunk)
+      }
+    }
+
+    child.stdout.on('data', collectChunk)
+    child.stderr.on('data', collectChunk)
+
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      const output = Buffer.concat(chunks).toString('utf-8').trim()
       const parts: string[] = []
-      if (stdout.trim()) parts.push(stdout.trim())
-      if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`)
-      if (error && !stdout && !stderr) parts.push(`Error: ${error.message}`)
-      res(parts.join('\n\n') || '(no output)')
+      if (output) parts.push(output)
+      if (truncated) parts.push(`\n[output truncated at ${MAX_OUTPUT_SIZE} bytes]`)
+      if (code !== 0 && code !== null) parts.push(`[exit code: ${code}]`)
+      res(parts.join('\n') || '(no output)')
+    })
+
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      res(`Error: ${err.message}`)
     })
   })
 }

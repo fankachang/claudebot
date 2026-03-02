@@ -24,7 +24,7 @@ export async function remoteToolCall(
   code: string,
   tool: string,
   args: Record<string, unknown>,
-  timeoutMs = 60_000,
+  timeoutMs = 120_000,
 ): Promise<string> {
   const port = getRelayPort() || env.RELAY_PORT
   const url = `ws://127.0.0.1:${port}`
