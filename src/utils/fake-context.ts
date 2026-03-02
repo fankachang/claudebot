@@ -29,11 +29,16 @@ export function createFakeContext(opts: FakeContextOptions): BotContext {
     return telegram.sendMessage(chatId, text, extra) as ReturnType<BotContext['reply']>
   }
 
+  const replyWithDocument: BotContext['replyWithDocument'] = (document, extra) => {
+    return telegram.sendDocument(chatId, document, extra) as ReturnType<BotContext['replyWithDocument']>
+  }
+
   // Minimal shape that plugins actually read
   return {
     chat: { id: chatId },
     message: { text: commandText },
     reply,
+    replyWithDocument,
     telegram,
   } as unknown as BotContext
 }
