@@ -245,7 +245,7 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
 
   // Normal mode — register in ordered buffer, then process in background
   const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) return
+  if (!state.selectedProject && !getPairing(chatId, threadId)?.connected) return
 
   const voiceActive = getVoiceActive(chatId, threadId)
   const ackText = voiceActive === 0
@@ -264,13 +264,15 @@ export async function voiceHandler(ctx: BotContext): Promise<void> {
   })
 }
 
-/** Quick check: either ASR mode is on, or user has a selected project. */
+/** Quick check: ASR mode on, or selected project, or active remote pairing. */
 function hasProjectOrAsrMode(
   chatId: number, threadId: number | undefined, asrMode: string,
 ): boolean {
   if (asrMode !== 'off') return true
   const state = getUserState(chatId, threadId)
-  return state.selectedProject !== null
+  if (state.selectedProject) return true
+  const pairing = getPairing(chatId, threadId)
+  return pairing?.connected === true
 }
 
 /** ASR-only mode: transcribe and reply directly, no buffer. */
