@@ -434,7 +434,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         ).catch(() => {})
       }
 
-      const tickInterval = setInterval(updateStatus, 1000)
+      const tickInterval = setInterval(updateStatus, 3000)
 
       // Long-running task reminder (120s)
       const LONG_RUN_MS = 120_000
