@@ -36,6 +36,9 @@ import { deployCommand } from './commands/deploy.js'
 import { pairCommand, unpairCommand } from './commands/pair.js'
 import { rpairCommand } from './commands/rpair.js'
 import { grabCommand } from './commands/grab.js'
+import { claudemdCommand } from './commands/claudemd.js'
+import { rstatusCommand } from './commands/rstatus.js'
+import { rlogCommand } from './commands/rlog.js'
 import { messageHandler } from './handlers/message-handler.js'
 import { callbackHandler } from './handlers/callback-handler.js'
 import { photoHandler, documentHandler } from './handlers/photo-handler.js'
@@ -99,6 +102,9 @@ export const CORE_COMMANDS = [
   { command: 'unpair', description: '斷開遠端配對' },
   { command: 'rpair', description: '重啟遠端 agent' },
   { command: 'grab', description: '從遠端下載檔案' },
+  { command: 'claudemd', description: '自動生成/更新 CLAUDE.md' },
+  { command: 'rstatus', description: '查看遠端系統狀態' },
+  { command: 'rlog', description: '查看遠端 log' },
   { command: 'help', description: '顯示說明' },
 ] as const
 
@@ -179,6 +185,9 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
     ['unpair', unpairCommand],
     ['rpair', rpairCommand],
     ['grab', grabCommand],
+    ['claudemd', claudemdCommand],
+    ['rstatus', rstatusCommand],
+    ['rlog', rlogCommand],
   ]
   for (const [name, handler] of coreEntries) {
     bot.command(name, handler)
