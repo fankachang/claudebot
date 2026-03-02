@@ -159,6 +159,11 @@ export function runClaude(options: RunOptions): void {
         `3. 如果使用者要做專案開發，先用 remote_project_overview 了解專案全貌，特別是 CLAUDE.md。\n` +
         `4. 搜尋程式碼用 remote_grep，比 remote_search_files 快很多。\n` +
         `5. 修改檔案前先 remote_read_file 讀取完整內容。\n` +
+        `\n` +
+        `⚠️ 自我修改例外：\n` +
+        `如果需要修改 ClaudeBot 專案本身的程式碼（當前工作目錄下的檔案），\n` +
+        `一律使用本地工具（Read/Write/Edit/Bash），不要用 remote_* 工具。\n` +
+        `判斷方式：改動需要「重啟 bot 才生效」→ 用本地工具。\n` +
         `[/遠端配對模式]`,
       )
     }
