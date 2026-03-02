@@ -3,6 +3,8 @@ import { getUserState } from '../state.js'
 import { execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import { getPairing } from '../../remote/pairing-store.js'
+import { remoteToolCall } from '../../remote/relay-client.js'
 
 export async function deployCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -117,10 +119,12 @@ export async function deployCommand(ctx: BotContext): Promise<void> {
       `🚀 [${project.name}] 部署已觸發\n\n` +
       `📝 Commit: ${commitMessage}\n` +
       `🔖 Hash: ${commitHash}\n` +
-      `🌿 Branch: ${branch}\n\n` +
-      `⏳ CloudPipe 部署中，稍後將收到完成通知...`,
+      `🌿 Branch: ${branch}`,
       { parse_mode: 'Markdown' }
     )
+
+    // Auto-sync to paired remote if connected
+    await syncToRemote(ctx, chatId, threadId, project.name)
   } catch (error) {
     const err = error as Error & { stderr?: Buffer }
     const errorMessage = err.stderr?.toString() || err.message
@@ -129,5 +133,61 @@ export async function deployCommand(ctx: BotContext): Promise<void> {
       `錯誤: ${errorMessage.slice(0, 200)}`,
       { parse_mode: 'Markdown' }
     )
+  }
+}
+
+async function syncToRemote(
+  ctx: BotContext,
+  chatId: number,
+  threadId: number | undefined,
+  projectName: string,
+): Promise<void> {
+  const pairing = getPairing(chatId, threadId)
+  if (!pairing?.connected) return
+
+  await ctx.reply('🔄 遠端同步中… (pull → build → restart)')
+
+  try {
+    // Step 1: git pull
+    const pullResult = await remoteToolCall(
+      pairing.code,
+      'remote_execute_command',
+      { command: 'git pull', cwd: 'C:\\ClaudeBot' },
+      30_000,
+    )
+    if (pullResult.includes('Already up to date')) {
+      await ctx.reply('ℹ️ 遠端已是最新，無需重新 build。')
+      return
+    }
+
+    // Step 2: npm run build
+    const buildResult = await remoteToolCall(
+      pairing.code,
+      'remote_execute_command',
+      { command: 'npm run build', cwd: 'C:\\ClaudeBot' },
+      120_000,
+    )
+
+    // Check for build errors
+    if (buildResult.toLowerCase().includes('error ts')) {
+      await ctx.reply(
+        `❌ 遠端 build 失敗:\n\`\`\`\n${buildResult.slice(0, 300)}\n\`\`\``,
+        { parse_mode: 'Markdown' },
+      )
+      return
+    }
+
+    // Step 3: trigger restart via .restart-all signal file
+    await remoteToolCall(
+      pairing.code,
+      'remote_write_file',
+      { path: 'data/.restart-all', content: String(Date.now()) },
+      10_000,
+    )
+
+    await ctx.reply(`✅ [${projectName}] 遠端同步完成！Bot 重啟中…`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await ctx.reply(`⚠️ 遠端同步失敗: ${msg.slice(0, 200)}`)
   }
 }
