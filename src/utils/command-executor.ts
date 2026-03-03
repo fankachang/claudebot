@@ -5,6 +5,12 @@
  * request, it includes `@cmd(/schedule bitcoin 09:00)` in its reply.
  * The bot intercepts these directives and executes the commands on the
  * user's behalf, then strips the raw directives from the displayed text.
+ *
+ * Resilient to common Claude formatting quirks:
+ * - Leading whitespace:  `  @cmd(/foo)`
+ * - Chinese brackets:    `@cmd（/foo）`
+ * - Backtick wrapping:   `` `@cmd(/foo)` ``
+ * - Markdown code block: `@cmd` inside ``` is NOT matched
  */
 
 export interface ParsedCommand {
@@ -18,15 +24,18 @@ export interface ParsedCommand {
   readonly raw: string
 }
 
-const CMD_PATTERN = /^@cmd\(([^)]+)\)\s*$/gm
+// Match @cmd(/xxx) with optional leading whitespace, backticks, and Chinese brackets
+const CMD_PATTERN = /^[ \t]*`?@cmd[（(]([^)）]+)[)）]`?\s*$/gm
 
 export function parseCommandDirectives(text: string): readonly ParsedCommand[] {
-  const results: ParsedCommand[] = []
+  // Don't parse @cmd inside code blocks
+  const withoutCodeBlocks = text.replace(/```[\s\S]*?```/g, '')
 
+  const results: ParsedCommand[] = []
   CMD_PATTERN.lastIndex = 0
   let match: RegExpExecArray | null
 
-  while ((match = CMD_PATTERN.exec(text)) !== null) {
+  while ((match = CMD_PATTERN.exec(withoutCodeBlocks)) !== null) {
     const full = match[1].trim()
     if (!full) continue
 

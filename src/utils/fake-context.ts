@@ -2,10 +2,9 @@
  * Creates a minimal BotContext-like object for executing plugin commands
  * programmatically (e.g. when Claude uses @cmd() directives).
  *
- * Only the subset of ctx that plugins actually use is implemented:
- * - ctx.chat.id
- * - ctx.message.text
- * - ctx.reply()
+ * Uses a Proxy to auto-delegate unknown replyWith* methods to the
+ * corresponding telegram.send* call, so new Telegram methods work
+ * without manual additions.
  */
 
 import type { Telegraf } from 'telegraf'
@@ -13,37 +12,50 @@ import type { BotContext } from '../types/context.js'
 
 interface FakeContextOptions {
   readonly chatId: number
+  readonly threadId?: number
   readonly commandText: string // e.g. "/schedule bitcoin 09:00"
   readonly telegram: Telegraf<BotContext>['telegram']
 }
 
 /**
- * Returns a minimal object that satisfies what most plugin handlers
- * read from ctx.  It is NOT a full Telegraf context — only use for
- * dispatching simple commands.
+ * Returns a minimal object that satisfies what plugin handlers
+ * read from ctx. Uses Proxy for future-proof replyWith* delegation.
  */
 export function createFakeContext(opts: FakeContextOptions): BotContext {
-  const { chatId, commandText, telegram } = opts
+  const { chatId, threadId, commandText, telegram } = opts
 
   const reply: BotContext['reply'] = (text, extra) => {
     return telegram.sendMessage(chatId, text, extra) as ReturnType<BotContext['reply']>
   }
 
-  const replyWithDocument: BotContext['replyWithDocument'] = (document, extra) => {
-    return telegram.sendDocument(chatId, document, extra) as ReturnType<BotContext['replyWithDocument']>
-  }
-
-  const replyWithPhoto: BotContext['replyWithPhoto'] = (photo, extra) => {
-    return telegram.sendPhoto(chatId, photo, extra) as ReturnType<BotContext['replyWithPhoto']>
-  }
-
-  // Minimal shape that plugins actually read
-  return {
+  const base = {
     chat: { id: chatId },
-    message: { text: commandText },
+    message: {
+      text: commandText,
+      message_thread_id: threadId,
+    },
     reply,
-    replyWithDocument,
-    replyWithPhoto,
     telegram,
-  } as unknown as BotContext
+  }
+
+  // Proxy: auto-delegate replyWithPhoto → telegram.sendPhoto, etc.
+  return new Proxy(base, {
+    get(target, prop, receiver) {
+      // Direct properties first
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver)
+      }
+
+      // replyWith* → telegram.send*
+      if (typeof prop === 'string' && prop.startsWith('replyWith')) {
+        const method = 'send' + prop.slice(9) // replyWithPhoto → sendPhoto
+        const telegramFn = (telegram as unknown as Record<string, unknown>)[method]
+        if (typeof telegramFn === 'function') {
+          return (...args: unknown[]) => telegramFn.call(telegram, chatId, ...args)
+        }
+      }
+
+      return undefined
+    },
+  }) as unknown as BotContext
 }
