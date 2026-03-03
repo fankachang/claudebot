@@ -7,6 +7,7 @@ import { validateProjectPath } from '../utils/path-validator.js'
 import { getTodos } from '../bot/todo-store.js'
 import { formatPinsForPrompt } from '../bot/context-pin-store.js'
 import { getLastResponse } from '../bot/last-response-store.js'
+import { buildContextInjection } from '../bot/context-digest-store.js'
 import { getSystemPrompt } from '../utils/system-prompt.js'
 import { env } from '../config/env.js'
 import { getPairing } from '../remote/pairing-store.js'
@@ -169,17 +170,14 @@ export function runClaude(options: RunOptions): void {
     }
   }
 
-  // For short or affirmative replies, inject last response tail so Claude
-  // knows what the user is referring to after context compression.
-  // Triggers on: very short messages (≤15 chars) OR affirmative phrases (≤80 chars).
+  // For short or affirmative replies, inject context so Claude knows what
+  // the user is referring to after context compression.
+  // Prefers structured [CTX] digest; falls back to raw response tail.
   if (prompt.length <= 15 || (prompt.length <= 80 && looksAffirmative(prompt))) {
-    const lastResponse = getLastResponse(validatedPath)
-    if (lastResponse) {
-      const isAffirmative = looksAffirmative(prompt)
-      const hint = isAffirmative
-        ? '使用者的短回覆是在確認/同意你上次提出的內容。請根據上次回覆繼續執行，不要只回「收到」。'
-        : '以下是你上次的回覆，使用者的訊息是針對這個內容。'
-      parts.push(`[前次回覆參考]\n${hint}\n${lastResponse}\n[/前次回覆參考]`)
+    const isAffirmative = looksAffirmative(prompt)
+    const injection = buildContextInjection(validatedPath, isAffirmative)
+    if (injection) {
+      parts.push(injection)
     }
   }
 
