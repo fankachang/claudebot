@@ -60,6 +60,25 @@ Plugin Store for install/uninstall (`/store`, `/install`, `/uninstall`).
 `src/launcher.ts` spawns separate processes for each `.env.botN` file.
 Each bot has its own token, plugins, and isolated sessions.
 
+### Git worktree isolation (multi-bot parallel dev)
+
+Multiple bot instances can work on the same project simultaneously using git worktrees.
+Each bot gets its own branch + working directory, merges back to master on `/deploy`.
+
+```
+C:\...\ClaudeBot\          ← master (main worktree)
+C:\...\ClaudeBot--bot1\    ← worktree: bot1 branch
+C:\...\ClaudeBot--bot5\    ← worktree: bot5 branch
+```
+
+**Config**: Set `WORKTREE_BRANCH=bot1` in `.env` (per bot instance). No value = no worktree (default).
+
+**`src/git/worktree.ts`**: `ensureWorktree()` (auto-create), `mergeToMain()`, `syncFromMain()`, `isWorktree()`, `mainRepoPath()`.
+
+**How it works**: When a bot selects a project via `findProject()`, `resolveWorktreePath()` checks `WORKTREE_BRANCH` and auto-creates/reuses a worktree. Queue, lock, and session systems isolate automatically because they key on `projectPath`.
+
+**Deploy flow**: `/deploy` on a worktree → commit on branch → merge to master → push master → sync remote.
+
 ### Remote pairing (zero-cost remote control)
 
 Operate a remote computer (N-side) from Telegram via bot on A-side. Zero AI cost — WebSocket relay.

@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import { getPairing } from '../../remote/pairing-store.js'
 import { remoteToolCall } from '../../remote/relay-client.js'
+import { isWorktree, mainRepoPath, mergeToMain } from '../../git/worktree.js'
 
 export async function deployCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -108,18 +109,46 @@ export async function deployCommand(ctx: BotContext): Promise<void> {
       windowsHide: true,
     }).trim()
 
+    // Worktree: merge branch back to master before push
+    const inWorktree = isWorktree(projectDir)
+    let pushDir = projectDir
+    let pushBranch = branch
+
+    if (inWorktree) {
+      const mainDir = mainRepoPath(projectDir)
+      if (!mainDir) {
+        await ctx.reply('❌ 找不到主倉庫路徑，無法合併。')
+        return
+      }
+
+      await ctx.reply(`🔀 合併 ${branch} → master...`)
+
+      const mergeResult = mergeToMain(mainDir, branch)
+      if (!mergeResult.success) {
+        const conflictList = mergeResult.conflicts?.length
+          ? `\n衝突檔案:\n${mergeResult.conflicts.map((f) => `  - ${f}`).join('\n')}`
+          : ''
+        await ctx.reply(`❌ 合併失敗: ${mergeResult.message}${conflictList}`)
+        return
+      }
+
+      pushDir = mainDir
+      pushBranch = 'master'
+    }
+
     // Git push
-    execSync(`git push origin ${branch}`, {
-      cwd: projectDir,
+    execSync(`git push origin ${pushBranch}`, {
+      cwd: pushDir,
       windowsHide: true,
     })
 
     // 推播成功訊息
+    const mergeNote = inWorktree ? `\n🔀 Merged: ${branch} → master` : ''
     await ctx.reply(
       `🚀 [${project.name}] 部署已觸發\n\n` +
       `📝 Commit: ${commitMessage}\n` +
       `🔖 Hash: ${commitHash}\n` +
-      `🌿 Branch: ${branch}`,
+      `🌿 Branch: ${pushBranch}${mergeNote}`,
       { parse_mode: 'Markdown' }
     )
 

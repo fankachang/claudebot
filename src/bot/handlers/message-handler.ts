@@ -5,7 +5,7 @@ import { getAISessionId } from '../../ai/session-store.js'
 import { enqueue, isProcessing } from '../../claude/queue.js'
 import { cancelAnyRunning } from '../../ai/registry.js'
 import { transcribeVoiceFile } from './voice-handler.js'
-import { scanProjects } from '../../config/projects.js'
+import { scanProjects, resolveWorktreePath } from '../../config/projects.js'
 import { updateBotBio, pinProjectStatus } from '../bio-updater.js'
 import { recordActivity } from '../../plugins/stats/activity-logger.js'
 import { addText, clearBuffer } from '../ordered-message-buffer.js'
@@ -76,7 +76,7 @@ function detectProjectMention(text: string): ProjectInfo | null {
 
   for (const project of sorted) {
     if (lower.includes(project.name.toLowerCase())) {
-      return project
+      return resolveWorktreePath(project)
     }
   }
 

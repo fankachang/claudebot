@@ -2,6 +2,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { ProjectInfo } from '../types/index.js'
 import { env } from './env.js'
+import { ensureWorktree, isGitRepo } from '../git/worktree.js'
 
 export function getBaseDirs(): readonly string[] {
   return env.PROJECTS_BASE_DIR.map((d) => resolve(d))
@@ -72,26 +73,47 @@ export function invalidateProjectCache(): void {
   scanCacheTime = 0
 }
 
+/**
+ * Resolve a project to use a git worktree path when WORKTREE_BRANCH is set.
+ * If the project is a git repo and the bot has a worktree branch configured,
+ * the returned ProjectInfo will point to the worktree directory instead.
+ * The `name` stays the same so the project identity is preserved.
+ */
+export function resolveWorktreePath(project: ProjectInfo): ProjectInfo {
+  const branch = env.WORKTREE_BRANCH
+  if (!branch) return project
+
+  if (!isGitRepo(project.path)) return project
+
+  try {
+    const wtPath = ensureWorktree(project.path, branch)
+    return { ...project, path: wtPath }
+  } catch {
+    // Worktree creation failed — fall back to original path
+    return project
+  }
+}
+
 export function findProject(query: string): ProjectInfo | null {
   const projects = scanProjects()
   const q = query.toLowerCase().trim()
 
   // 1. Exact match
   const exact = projects.find((p) => p.name.toLowerCase() === q)
-  if (exact) return exact
+  if (exact) return resolveWorktreePath(exact)
 
   // 2. Path fragment match (e.g., "Desktop/code/weetube" or "C:\Users\...\weetube")
   const normalized = q.replace(/\\/g, '/')
   const byPath = projects.find((p) => p.path.replace(/\\/g, '/').toLowerCase().endsWith(normalized))
-  if (byPath) return byPath
+  if (byPath) return resolveWorktreePath(byPath)
 
   // 3. Starts-with match (e.g., "wee" → "weetube")
   const startsWith = projects.filter((p) => p.name.toLowerCase().startsWith(q))
-  if (startsWith.length === 1) return startsWith[0]
+  if (startsWith.length === 1) return resolveWorktreePath(startsWith[0])
 
   // 4. Contains match (e.g., "tube" → "weetube")
   const contains = projects.filter((p) => p.name.toLowerCase().includes(q))
-  if (contains.length === 1) return contains[0]
+  if (contains.length === 1) return resolveWorktreePath(contains[0])
 
   return null
 }

@@ -3,6 +3,7 @@ import { getBookmark } from '../bookmarks.js'
 import { validateProjectPath } from '../../utils/path-validator.js'
 import { setUserProject, getUserState } from '../state.js'
 import { formatAILabel } from '../../ai/types.js'
+import { resolveWorktreePath } from '../../config/projects.js'
 
 export async function shortcutCommand(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id
@@ -13,11 +14,12 @@ export async function shortcutCommand(ctx: BotContext): Promise<void> {
 
   if (isNaN(slot) || slot < 1 || slot > 9) return
 
-  const project = getBookmark(chatId, slot)
-  if (!project) {
+  const raw = getBookmark(chatId, slot)
+  if (!raw) {
     await ctx.reply(`\u{66F8}\u{7C64} /${slot} \u{4E0D}\u{5B58}\u{5728}\u{3002}\u{7528} /fav \u{8A2D}\u{5B9A}\u{66F8}\u{7C64}\u{3002}`)
     return
   }
+  const project = resolveWorktreePath(raw)
 
   const msg = ctx.message
   const threadId = msg && 'message_thread_id' in msg ? msg.message_thread_id : undefined
