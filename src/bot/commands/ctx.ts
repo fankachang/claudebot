@@ -1,6 +1,6 @@
 import type { BotContext } from '../../types/context.js'
 import { getContext, clearContext } from '../context-digest-store.js'
-import { reloadCtxSpec } from '../../utils/system-prompt.js'
+import { reloadAllSpecs } from '../../utils/system-prompt.js'
 import { getUserState } from '../state.js'
 
 export async function ctxCommand(ctx: BotContext): Promise<void> {
@@ -12,10 +12,10 @@ export async function ctxCommand(ctx: BotContext): Promise<void> {
 
   const project = getUserState(chatId).selectedProject
 
-  // /ctx reload — hot-reload ctx-spec.md
+  // /ctx reload — hot-reload all spec files
   if (args === 'reload') {
-    reloadCtxSpec()
-    await ctx.reply('CTX spec reloaded from `data/ctx-spec.md`', { parse_mode: 'Markdown' })
+    reloadAllSpecs()
+    await ctx.reply('All specs reloaded (`ctx-spec.md` + `subagent-spec.md`)', { parse_mode: 'Markdown' })
     return
   }
 

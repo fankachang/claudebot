@@ -13,6 +13,7 @@ export interface AIRunOptions {
   readonly imagePaths: readonly string[]
   readonly chatId?: number
   readonly threadId?: number
+  readonly maxTurns?: number
   readonly onTextDelta: (text: string, accumulated: string) => void
   readonly onToolUse: (toolName: string) => void
   readonly onResult: (result: AIResult) => void

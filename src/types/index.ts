@@ -25,6 +25,7 @@ export interface QueueItem {
   readonly sessionId: string | null
   readonly imagePaths: readonly string[]
   readonly dashboardCommandId?: string
+  readonly maxTurns?: number
 }
 
 export interface ClaudeResult {

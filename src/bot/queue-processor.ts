@@ -500,6 +500,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         sessionId: item.sessionId,
         imagePaths: item.imagePaths,
         chatId: item.chatId,
+        maxTurns: item.maxTurns,
         onTextDelta: (delta, acc) => {
           ctx.accumulated = acc
           if (dashCmdId) {
