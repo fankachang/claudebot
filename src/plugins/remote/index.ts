@@ -335,6 +335,88 @@ async function rexecCommand(ctx: BotContext): Promise<void> {
   })
 }
 
+// --- /find: smart file search (es → fd → dir) ---
+
+const MAX_FIND_RESULTS = 30
+
+function formatFindResults(query: string, raw: string, tool: string): string {
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (lines.length === 0) return `🔍 \`${query}\` — 找不到結果`
+
+  const shown = lines.slice(0, MAX_FIND_RESULTS)
+  const grouped = new Map<string, string[]>()
+
+  for (const fullPath of shown) {
+    const sep = fullPath.includes('/') ? '/' : '\\'
+    const parts = fullPath.split(sep)
+    const name = parts.pop() || fullPath
+    const dir = parts.length > 2 ? '...' + sep + parts.slice(-2).join(sep) : parts.join(sep)
+    const bucket = dir || '.'
+    const existing = grouped.get(bucket) ?? []
+    grouped.set(bucket, [...existing, name])
+  }
+
+  const sections: string[] = []
+  for (const [dir, files] of grouped) {
+    const fileList = files.map((f) => `  📄 ${f}`).join('\n')
+    sections.push(`📁 _${dir}_\n${fileList}`)
+  }
+
+  const header = `🔍 *${query}* — ${lines.length} 結果${lines.length > MAX_FIND_RESULTS ? ` (顯示前 ${MAX_FIND_RESULTS})` : ''} _via ${tool}_`
+  return `${header}\n\n${sections.join('\n\n')}`
+}
+
+async function findCommand(ctx: BotContext): Promise<void> {
+  const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : ''
+  const query = text.replace(/^\/find\s*/, '').trim()
+
+  if (!query) {
+    await ctx.reply('用法: `/find <關鍵字或 *.ext>`\n例: `/find *.mp4` `/find report`', { parse_mode: 'Markdown' })
+    return
+  }
+
+  await withRelay(ctx, async (client) => {
+    // Try Everything CLI first (instant, indexed)
+    try {
+      const esResult = await client.call('remote_execute_command', {
+        command: `es.exe -n ${MAX_FIND_RESULTS + 10} "${query}"`,
+        timeout: 8000,
+      })
+      if (esResult.trim()) {
+        await ctx.reply(formatFindResults(query, esResult, 'Everything'), { parse_mode: 'Markdown' })
+        return
+      }
+    } catch { /* es not available, fall through */ }
+
+    // Fallback to fd (fast, recursive)
+    try {
+      const fdResult = await client.call('remote_execute_command', {
+        command: `fd --max-results ${MAX_FIND_RESULTS + 10} "${query}"`,
+        timeout: 15000,
+      })
+      if (fdResult.trim()) {
+        await ctx.reply(formatFindResults(query, fdResult, 'fd'), { parse_mode: 'Markdown' })
+        return
+      }
+    } catch { /* fd not available, fall through */ }
+
+    // Last resort: dir /s /b
+    try {
+      const home = await getHomeDir(client)
+      const dirResult = await client.call('remote_execute_command', {
+        command: `dir /s /b "${home}\\Desktop\\*${query}*" "${home}\\Downloads\\*${query}*" "${home}\\Documents\\*${query}*" 2>nul`,
+        timeout: 15000,
+      })
+      if (dirResult.trim()) {
+        await ctx.reply(formatFindResults(query, dirResult, 'dir'), { parse_mode: 'Markdown' })
+        return
+      }
+    } catch { /* ignore */ }
+
+    await ctx.reply(`🔍 \`${query}\` — 找不到結果`, { parse_mode: 'Markdown' })
+  })
+}
+
 // --- Plugin ---
 
 const remotePlugin: Plugin = {
@@ -348,6 +430,7 @@ const remotePlugin: Plugin = {
     { name: 'rwrite', description: '寫入遠端檔案 (路徑 內容)', handler: rwriteCommand },
     { name: 'rinfo', description: '遠端系統資訊', handler: rinfoCommand },
     { name: 'rexec', description: '在遠端執行指令', handler: rexecCommand },
+    { name: 'find', description: '搜尋遠端檔案 (關鍵字/*.ext)', handler: findCommand },
   ],
 }
 
