@@ -140,7 +140,7 @@ async function handleRunnerResult(ctx: ProcessorContext, result: AIResult): Prom
       setContext(ctx.item.project.path, digestCleaned || hookedText, digest)
     }
 
-    const responseText = digestCleaned || hookedText
+    const responseText = digest !== null ? digestCleaned : hookedText
     const totalTime = ((Date.now() - ctx.startTime) / 1000).toFixed(1)
     const cost = (result.costUsd ?? 0).toFixed(4)
 
