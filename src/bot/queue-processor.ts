@@ -443,11 +443,11 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         telegram.sendMessage(
           item.chatId,
           `\u{26A0}\u{FE0F} *[${tag}]* \u{5DF2}\u{904B}\u{884C}\u{8D85}\u{904E} 2 \u{5206}\u{9418}\u{FF0C}\u{53EF}\u{7528} /cancel \u{53D6}\u{6D88}`,
-          { parse_mode: 'Markdown' },
+          { parse_mode: 'Markdown', disable_notification: true },
         ).catch(() => {})
       }, LONG_RUN_MS)
 
-      // Idle entertainment: send fun tidbits during long waits
+      // Idle entertainment: send fun tidbits during long waits (silent — no notification)
       if (!isDashboard) {
         const TIDBIT_DELAY_MS = 15_000
         const TIDBIT_INTERVAL_MS = 30_000 + Math.random() * 15_000
@@ -460,11 +460,11 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
               const msg = await telegram.sendAudio(
                 item.chatId,
                 tidbit.audioUrl,
-                { caption: tidbit.caption, title: tidbit.title },
+                { caption: tidbit.caption, title: tidbit.title, disable_notification: true },
               )
               tidbitMsgIds.push(msg.message_id)
             } else {
-              const msg = await telegram.sendMessage(item.chatId, tidbit.content, { parse_mode: 'Markdown' })
+              const msg = await telegram.sendMessage(item.chatId, tidbit.content, { parse_mode: 'Markdown', disable_notification: true })
               tidbitMsgIds.push(msg.message_id)
             }
           } catch { /* ignore */ }
