@@ -9,9 +9,11 @@
  */
 
 export interface ContextDigest {
-  readonly status: 'proposal' | 'question' | 'options' | 'report' | 'info'
+  readonly status: 'proposal' | 'question' | 'options' | 'done' | 'error' | 'info'
   readonly summary: string
   readonly pending: string
+  readonly next: string
+  readonly files: readonly string[]
 }
 
 interface StoredContext {
@@ -25,6 +27,8 @@ const MAX_RAW_LENGTH = 1500
 // Match [CTX]...[/CTX] or CTX.../CTX (Claude sometimes drops brackets)
 // Requires status: line inside to avoid false positives
 const CTX_REGEX = /\n?\[?CTX\]?\s*\n(status:[\s\S]*?)\n\s*\[?\/CTX\]?\s*$/
+
+const VALID_STATUSES = new Set(['proposal', 'question', 'options', 'done', 'error', 'info'])
 
 /**
  * Parse a [CTX] block from Claude's response.
@@ -40,14 +44,19 @@ export function extractDigest(text: string): { digest: ContextDigest | null; cle
   const statusMatch = block.match(/^status:\s*(.+)/m)
   const summaryMatch = block.match(/^summary:\s*(.+)/m)
   const pendingMatch = block.match(/^pending:\s*(.+)/m)
+  const nextMatch = block.match(/^next:\s*(.+)/m)
+  const filesMatch = block.match(/^files:\s*(.+)/m)
 
   const status = statusMatch?.[1].trim() as ContextDigest['status'] | undefined
   const summary = summaryMatch?.[1].trim() ?? ''
   const pending = pendingMatch?.[1].trim() ?? 'none'
+  const next = nextMatch?.[1].trim() ?? 'none'
+  const files = filesMatch
+    ? filesMatch[1].trim().split(/[,，]\s*/).filter(Boolean)
+    : []
 
-  const validStatuses = new Set(['proposal', 'question', 'options', 'report', 'info'])
-  const digest: ContextDigest | null = status && validStatuses.has(status)
-    ? { status, summary, pending }
+  const digest: ContextDigest | null = status && VALID_STATUSES.has(status)
+    ? { status, summary, pending, next, files }
     : null
 
   // Strip the [CTX] block from the response
@@ -85,14 +94,25 @@ export function buildContextInjection(projectPath: string, isAffirmative: boolea
   // Prefer structured digest
   if (ctx.digest) {
     const actionHint = buildActionHint(ctx.digest, isAffirmative)
-    return (
-      `[前次對話摘要]\n` +
-      `狀態: ${ctx.digest.status}\n` +
-      `摘要: ${ctx.digest.summary}\n` +
-      `待決: ${ctx.digest.pending}\n` +
-      `${actionHint}\n` +
-      `[/前次對話摘要]`
-    )
+    const lines = [
+      `[前次對話摘要]`,
+      `狀態: ${ctx.digest.status}`,
+      `摘要: ${ctx.digest.summary}`,
+      `待決: ${ctx.digest.pending}`,
+    ]
+
+    if (ctx.digest.next !== 'none') {
+      lines.push(`下一步: ${ctx.digest.next}`)
+    }
+
+    if (ctx.digest.files.length > 0) {
+      lines.push(`相關檔案: ${ctx.digest.files.join(', ')}`)
+    }
+
+    lines.push(actionHint)
+    lines.push(`[/前次對話摘要]`)
+
+    return lines.join('\n')
   }
 
   // Fallback: raw tail with generic hint
@@ -112,16 +132,22 @@ function buildActionHint(digest: ContextDigest, isAffirmative: boolean): string 
     return '指示: 使用者的訊息是針對上述內容。'
   }
 
+  const nextHint = digest.next !== 'none'
+    ? `\n具體下一步: ${digest.next}`
+    : ''
+
   switch (digest.status) {
     case 'proposal':
-      return `指示: 使用者同意你的提案「${digest.summary}」。請立即開始執行，不要再確認。`
+      return `指示: 使用者同意你的提案「${digest.summary}」。請立即開始執行，不要再確認。${nextHint}`
     case 'question':
-      return `指示: 使用者肯定回答了你的問題。根據回答繼續處理。`
+      return `指示: 使用者肯定回答了你的問題。根據回答繼續處理。${nextHint}`
     case 'options':
-      return `指示: 使用者同意你列出的選項/方向。請按照建議執行。`
-    case 'report':
-      return `指示: 使用者確認了你的報告。如有下一步就繼續，沒有就簡短回應。`
+      return `指示: 使用者同意你列出的選項/方向。請按照建議執行。${nextHint}`
+    case 'done':
+      return `指示: 使用者確認了你的完成報告。如有下一步就繼續，沒有就簡短回應。${nextHint}`
+    case 'error':
+      return `指示: 使用者回應了你報告的錯誤。根據上下文繼續排除問題。${nextHint}`
     case 'info':
-      return `指示: 使用者回應了你的資訊。繼續對話即可。`
+      return `指示: 使用者回應了你的資訊。繼續對話即可。${nextHint}`
   }
 }
