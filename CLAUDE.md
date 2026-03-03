@@ -15,11 +15,13 @@ Not a pipe to Claude — a platform with plugins, queue, multi-project, and inte
 ```
 src/
   launcher.ts          ← Multi-bot launcher
-  bot/                 ← Core: commands, handlers, middleware, queue
-  claude/              ← Claude CLI runner + session store
+  bot/                 ← Core: commands, handlers, middleware, queue, data stores
+  claude/              ← Claude CLI runner + session store + file lock
   ai/                  ← Multi-backend AI (Claude, Gemini) + session store
+  auth/                ← Authentication (bcrypt password verification)
   plugins/             ← Plugin system (hot-reloadable)
   remote/              ← Remote pairing: relay server, agent, protocol, tools
+  git/                 ← Git worktree management (multi-bot parallel dev)
   asr/                 ← Sherpa-ONNX voice recognition
   config/              ← env, projects scanner
   telegram/            ← Telegram helpers (message splitting, etc.)
@@ -49,6 +51,41 @@ ASR flow: OGG → ffmpeg 16kHz WAV → Sherpa ASR → biaodian punctuation.
 ### Stream output
 Claude CLI `--output-format stream-json` parsed line-by-line from stdout.
 Telegram message edited with 1s debounce, truncated at 4096 chars.
+
+### Multi-backend AI (`src/ai/`)
+Supports Claude and Gemini backends. `src/ai/registry.ts` routes to the right runner.
+User selects via `/model` (auto/claude:sonnet/claude:opus/gemini:flash).
+Session IDs stored per-backend: `${BOT_ID}:${backend}:${projectPath}`.
+
+### Context preservation
+- Short replies (≤15 chars) auto-inject `[前次回覆參考]` with last Claude response
+- Affirmative replies (≤80 chars starting with 好/可以/OK/嗯...) also inject context
+- Prevents "amnesia" when context compresses
+
+### Ordered message buffer (`src/bot/ordered-message-buffer.ts`)
+Buffers text + voice per chat/thread, keyed by Telegram message_id (ascending).
+Voice entries start 'pending' → block flush; `resolveVoice` triggers `tryFlush`.
+1s text timer, 30s staleness sweep, `forceFlush` on project switch.
+
+### Choice detector (`src/utils/choice-detector.ts`)
+Detects numbered lists in Claude responses → generates Telegram inline buttons.
+Only triggers when accompanied by a selection prompt (哪/選/which/pick).
+
+### Data stores (`src/bot/`)
+- **bookmarks.ts** — `/fav` manages up to 9 project shortcuts (`/1`–`/9`)
+- **context-pin-store.ts** — `/context pin` pins up to 10 snippets per project, auto-injected into prompts
+- **todo-store.ts** — `/todo` per-project task tracking
+- **idea-store.ts** — `/idea` stores dated, tagged ideas in `data/ideas.md`
+- **last-response-store.ts** — Caches last Claude response for context injection
+- **suggestion-store.ts** — Stores follow-up suggestions from Claude
+- **choice-store.ts** — Stores active choice buttons
+- **asr-store.ts** — Per-user voice recognition mode (on/off)
+
+### Bio updater (`src/bot/bio-updater.ts`)
+Updates bot's Telegram bio with current project name. Pins project status message in chat.
+
+### Auto-commit
+`AUTO_COMMIT=true` in `.env` → automatically `git add -A && git commit` after each Claude interaction.
 
 ### Plugin system
 Plugins live in `src/plugins/<name>/index.ts`, export `Plugin` interface.
@@ -121,12 +158,13 @@ Used in: `callback-handler.ts`, `voice-handler.ts`, `new-session.ts`, `context.t
 /todo, /todos, /idea, /ideas, /run, /chat, /newbot,
 /store, /install, /uninstall, /reload, /asr, /context,
 /restart, /deploy, /pair, /unpair, /rpair, /grab,
-/claudemd, /rstatus, /rlog, /help
+/claudemd, /rstatus, /rlog, /help,
+/login, /logout, /prompt, /cd, /mkdir, /1–/9 (bookmark shortcuts)
 
 ### Plugins (enabled per-bot via PLUGINS env)
-dice, coin, reminder, screenshot, search, browse, cost,
-github (star), mcp, scheduler, sysinfo, stats, calc,
-map, mdfix, remote, task, write
+browse, calc, cost, dice, github (star), map, mcp, mdfix,
+reminder, remote, scheduler, screenshot, search, stats,
+sysinfo, task, write
 
 ## Adding a new plugin
 
@@ -191,6 +229,43 @@ Registry entry format:
 ```
 
 **C. Verify** — `/store` should show the new plugin, `/install <name>` should work
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BOT_TOKEN` | yes | Telegram bot token |
+| `ALLOWED_CHAT_IDS` | yes | Comma-separated allowed Telegram chat IDs |
+| `PROJECTS_BASE_DIR` | yes | Comma-separated project scan directories |
+| `LOGIN_PASSWORD` | * | Plain-text login password |
+| `LOGIN_PASSWORD_HASH` | * | bcrypt hash (alternative to plain) |
+| `AUTO_AUTH` | no | Skip login (`true`/`false`, default `true`) |
+| `DEFAULT_MODEL` | no | `haiku`/`sonnet`/`opus` (default `sonnet`) |
+| `PLUGINS` | no | Comma-separated plugin names to enable |
+| `WORKTREE_BRANCH` | no | Git worktree branch name (e.g. `bot1`) |
+| `AUTO_COMMIT` | no | Auto git commit after Claude responses |
+| `REMOTE_ENABLED` | no | Enable remote pairing relay server |
+| `RELAY_PORT` | no | WebSocket relay port (default `9877`) |
+| `GEMINI_API_KEY` | no | Gemini API key for voice refinement |
+| `GITHUB_TOKEN` | no | GitHub API token for `/star`, `/follow` |
+| `ANTHROPIC_ADMIN_KEY` | no | Anthropic admin key for `/usage` |
+| `DASHBOARD` | no | Enable web dashboard |
+| `DASHBOARD_PORT` | no | Dashboard port (default `3100`) |
+| `PREVENT_SLEEP` | no | Prevent OS sleep |
+| `MCP_BROWSER` | no | Enable Playwright MCP server |
+| `MCP_AGENT_BROWSER` | no | Enable agent-browser MCP server |
+| `SHERPA_SERVER_PATH` | no | Path to Sherpa ASR server |
+| `BIAODIAN_PATH` | no | Path to punctuation model |
+| `TELEGRAM_API_BASE` | no | Custom Telegram API base URL (proxy) |
+| `TELEGRAM_PROXY` | no | HTTPS proxy for Telegram |
+| `SKIP_PERMISSIONS` | no | Skip Claude CLI permission checks |
+| `MAX_TURNS` | no | Max turns per Claude session |
+| `RATE_LIMIT_MAX` | no | Max requests per window (default `10`) |
+| `RATE_LIMIT_WINDOW_MS` | no | Rate limit window ms (default `60000`) |
+| `ADMIN_CHAT_ID` | no | Admin chat ID for system notifications |
+| `PLUGIN_REGISTRY_URL` | no | Plugin store registry JSON URL |
+
+\* Either `LOGIN_PASSWORD`, `LOGIN_PASSWORD_HASH`, or `AUTO_AUTH=true` is required.
 
 ## When reading memory files
 
