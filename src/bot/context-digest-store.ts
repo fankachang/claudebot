@@ -22,7 +22,9 @@ interface StoredContext {
 const store = new Map<string, StoredContext>()
 
 const MAX_RAW_LENGTH = 1500
-const CTX_REGEX = /\[CTX\]\s*\n([\s\S]*?)\n\s*\[\/CTX\]\s*$/
+// Match [CTX]...[/CTX] or CTX.../CTX (Claude sometimes drops brackets)
+// Requires status: line inside to avoid false positives
+const CTX_REGEX = /\n?\[?CTX\]?\s*\n(status:[\s\S]*?)\n\s*\[?\/CTX\]?\s*$/
 
 /**
  * Parse a [CTX] block from Claude's response.
