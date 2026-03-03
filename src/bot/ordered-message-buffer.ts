@@ -14,6 +14,7 @@ import { resolveBackend } from '../ai/types.js'
 import { getAISessionId } from '../ai/session-store.js'
 import { enqueue, isProcessing, getQueueLength } from '../claude/queue.js'
 import { recordActivity } from '../plugins/stats/activity-logger.js'
+import { getPairing } from '../remote/pairing-store.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,9 +103,12 @@ function flushEntries(entries: readonly BufferEntry[]): void {
   const threadId = first.threadId
 
   const state = getUserState(chatId, threadId)
-  if (!state.selectedProject) return
 
+  // Resolve project: local selection or remote pairing fallback
+  const pairing = !state.selectedProject ? getPairing(chatId, threadId) : null
   const project = state.selectedProject
+    ?? (pairing?.connected ? { name: 'remote', path: process.cwd() } : null)
+  if (!project) return
 
   // Combine texts — skip failed entries (no text)
   const parts: string[] = []
