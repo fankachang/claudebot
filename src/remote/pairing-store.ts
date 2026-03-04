@@ -154,7 +154,10 @@ export function markConnected(code: string, label: string): boolean {
   const updated = { ...session, connected: true, label }
   const pairings = { ...store.pairings, [key]: updated }
   writeStore({ pairings, codeIndex: store.codeIndex })
-  onConnectFn(updated, label)
+  // Only fire callback if this pairing belongs to the current bot instance
+  if (key.startsWith(`${BOT_ID}:`)) {
+    onConnectFn(updated, label)
+  }
   return true
 }
 
@@ -166,7 +169,9 @@ export function markDisconnected(code: string): void {
   if (!session) return
   const pairings = { ...store.pairings, [key]: { ...session, connected: false } }
   writeStore({ pairings, codeIndex: store.codeIndex })
-  onDisconnectFn(session, session.label)
+  if (key.startsWith(`${BOT_ID}:`)) {
+    onDisconnectFn(session, session.label)
+  }
 }
 
 export function removePairing(

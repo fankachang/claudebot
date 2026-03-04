@@ -93,11 +93,10 @@ function handleAgentRegister(ws: WebSocket, code: string, ip: string): void {
 
   agents.set(code, { ws, code, connectedAt: Date.now() })
 
-  const remoteAddr = ip
-  markConnected(code, remoteAddr)
+  markConnected(code, 'remote agent')
 
   send(ws, { type: 'agent_registered' })
-  console.log(`[relay] Agent registered: code=${code} from=${remoteAddr}`)
+  console.log(`[relay] Agent registered: code=${code} from=${ip}`)
 }
 
 function handleProxyConnect(ws: WebSocket, code: string): void {
