@@ -13,6 +13,20 @@ import { sessionKey } from '../bot/state.js'
 const PAIRING_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const STORE_PATH = path.resolve('data', 'pairings.json')
 
+type PairingEventFn = (session: PairingSession, label: string) => void
+let onConnectFn: PairingEventFn = () => {}
+let onDisconnectFn: PairingEventFn = () => {}
+
+/** Set callback when a remote agent connects. */
+export function onPairingConnect(fn: PairingEventFn): void {
+  onConnectFn = fn
+}
+
+/** Set callback when a remote agent disconnects. */
+export function onPairingDisconnect(fn: PairingEventFn): void {
+  onDisconnectFn = fn
+}
+
 export interface PairingSession {
   readonly code: string
   readonly chatId: number
@@ -128,8 +142,10 @@ export function markConnected(code: string, label: string): boolean {
   if (!key) return false
   const session = store.pairings[key]
   if (!session) return false
-  const pairings = { ...store.pairings, [key]: { ...session, connected: true, label } }
+  const updated = { ...session, connected: true, label }
+  const pairings = { ...store.pairings, [key]: updated }
   writeStore({ pairings, codeIndex: store.codeIndex })
+  onConnectFn(updated, label)
   return true
 }
 
@@ -141,6 +157,7 @@ export function markDisconnected(code: string): void {
   if (!session) return
   const pairings = { ...store.pairings, [key]: { ...session, connected: false } }
   writeStore({ pairings, codeIndex: store.codeIndex })
+  onDisconnectFn(session, session.label)
 }
 
 export function removePairing(
