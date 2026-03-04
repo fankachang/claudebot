@@ -35,6 +35,7 @@ interface RunOptions {
   readonly imagePaths: readonly string[]
   readonly chatId?: number
   readonly threadId?: number
+  readonly maxTurns?: number
   readonly onTextDelta: OnTextDelta
   readonly onToolUse: OnToolUse
   readonly onResult: OnResult
@@ -208,8 +209,9 @@ export function runClaude(options: RunOptions): void {
     args.push('--append-system-prompt', systemPrompt)
   }
 
-  if (env.MAX_TURNS) {
-    args.push('--max-turns', String(env.MAX_TURNS))
+  const effectiveMaxTurns = options.maxTurns ?? env.MAX_TURNS
+  if (effectiveMaxTurns) {
+    args.push('--max-turns', String(effectiveMaxTurns))
   }
 
   if (sessionId) {

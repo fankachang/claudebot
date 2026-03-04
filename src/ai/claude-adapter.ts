@@ -19,6 +19,7 @@ export const claudeAdapter: AIRunner = {
       imagePaths: options.imagePaths,
       chatId: options.chatId,
       threadId: options.threadId,
+      maxTurns: options.maxTurns,
       onTextDelta: options.onTextDelta,
       onToolUse: options.onToolUse,
       onResult: (result) => {

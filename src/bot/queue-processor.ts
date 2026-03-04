@@ -10,6 +10,7 @@ import { splitText } from '../utils/text-splitter.js'
 import { detectImagePaths } from '../utils/image-detector.js'
 import { parseCrossProjectTasks, stripRunDirectives } from '../utils/cross-project-parser.js'
 import { parseCommandDirectives, stripCommandDirectives } from '../utils/command-executor.js'
+import { parseDirectives, executeDirectives, stripDirectives } from '../utils/directives.js'
 import { createFakeContext } from '../utils/fake-context.js'
 import { dispatchPluginCommand, dispatchOutputHooks, isPluginCommand } from '../plugins/loader.js'
 import { getCoreCommandHandler } from './bot.js'
@@ -91,6 +92,7 @@ async function handleRunnerResult(ctx: ProcessorContext, result: AIResult): Prom
     // so filenames with underscores aren't escaped (REMOTE_SUCCESS → REMOTE\_SUCCESS)
     const rawAfterRun = stripRunDirectives(rawText)
     const cmdDirectives = parseCommandDirectives(rawAfterRun)
+    const CMD_TIMEOUT_MS = 60_000
     for (const cmd of cmdDirectives) {
       try {
         const fakeCtx = createFakeContext({
@@ -99,22 +101,43 @@ async function handleRunnerResult(ctx: ProcessorContext, result: AIResult): Prom
           telegram: ctx.telegram,
         })
         const coreHandler = getCoreCommandHandler(cmd.name)
-        if (coreHandler) {
-          await coreHandler(fakeCtx)
-        } else if (isPluginCommand(cmd.name)) {
-          await dispatchPluginCommand(cmd.name, fakeCtx)
+        const handler = coreHandler
+          ?? (isPluginCommand(cmd.name) ? (c: BotContext) => dispatchPluginCommand(cmd.name, c) : null)
+
+        if (handler) {
+          await Promise.race([
+            handler(fakeCtx),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`@cmd(${cmd.command}) 執行逾時 (${CMD_TIMEOUT_MS / 1000}s)`)), CMD_TIMEOUT_MS)
+            ),
+          ])
         } else {
-          console.warn(`[queue] @cmd unknown command: ${cmd.command}`)
+          ctx.telegram.sendMessage(ctx.item.chatId,
+            `⚠️ 未知指令: \`${cmd.command}\``, { parse_mode: 'Markdown' }
+          ).catch(() => {})
         }
       } catch (err) {
-        console.error(`[queue] @cmd(${cmd.command}) failed:`, err)
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[queue] @cmd(${cmd.command}) failed:`, msg)
+        ctx.telegram.sendMessage(ctx.item.chatId,
+          `⚠️ @cmd(${cmd.command}) 失敗: ${msg}`
+        ).catch(() => {})
       }
     }
 
-    // Strip @cmd directives before passing to output hooks
-    const textForHooks = cmdDirectives.length > 0
+    // Parse and execute @file, @confirm, @notify directives
+    const aiDirectives = parseDirectives(rawAfterRun)
+    if (aiDirectives.length > 0) {
+      await executeDirectives(aiDirectives, ctx.item.chatId, ctx.telegram, ctx.item.project.path)
+    }
+
+    // Strip all directives (@cmd + @file/@confirm/@notify) before output hooks
+    const afterCmdStrip = cmdDirectives.length > 0
       ? stripCommandDirectives(rawAfterRun)
       : rawAfterRun
+    const textForHooks = aiDirectives.length > 0
+      ? stripDirectives(afterCmdStrip)
+      : afterCmdStrip
 
     const hookResult = await dispatchOutputHooks(textForHooks, {
       projectPath: ctx.item.project.path,
@@ -140,7 +163,7 @@ async function handleRunnerResult(ctx: ProcessorContext, result: AIResult): Prom
       setContext(ctx.item.project.path, digestCleaned || hookedText, digest)
     }
 
-    const responseText = digestCleaned || hookedText
+    const responseText = digest !== null ? digestCleaned : hookedText
     const totalTime = ((Date.now() - ctx.startTime) / 1000).toFixed(1)
     const cost = (result.costUsd ?? 0).toFixed(4)
 
@@ -504,6 +527,7 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
         sessionId: freshSessionId,
         imagePaths: item.imagePaths,
         chatId: item.chatId,
+        maxTurns: item.maxTurns,
         onTextDelta: (delta, acc) => {
           ctx.accumulated = acc
           if (dashCmdId) {

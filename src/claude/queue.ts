@@ -110,10 +110,17 @@ function drainAndMerge(projectPath: string, first: QueueItem): QueueItem {
     ? allPrompts[0]
     : `以下是多個任務，請依序處理：\n\n${allPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
 
+  // Use the highest maxTurns from any merged item
+  const allMaxTurns = [first.maxTurns, ...sameChatItems.map((i) => i.maxTurns)].filter(
+    (v): v is number => v !== undefined,
+  )
+  const mergedMaxTurns = allMaxTurns.length > 0 ? Math.max(...allMaxTurns) : undefined
+
   return {
     ...first,
     prompt: mergedPrompt,
     imagePaths: allImages,
+    maxTurns: mergedMaxTurns,
   }
 }
 
