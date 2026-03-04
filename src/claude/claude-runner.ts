@@ -273,6 +273,7 @@ export function runClaude(options: RunOptions): void {
         const event = JSON.parse(trimmed) as StreamEvent
         console.log('[claude-runner] event type:', event.type, 'subtype' in event ? (event as any).subtype : '')
         handleStreamEvent(event, {
+          onNewTurn: () => { accumulated = '' },
           onTextDelta: (text) => {
             accumulated += text
             if (accumulated.length > MAX_ACCUMULATED_LENGTH) {
@@ -314,6 +315,7 @@ export function runClaude(options: RunOptions): void {
       try {
         const event = JSON.parse(buffer.trim()) as StreamEvent
         handleStreamEvent(event, {
+          onNewTurn: () => { accumulated = '' },
           onTextDelta: (text) => {
             accumulated += text
             if (accumulated.length > MAX_ACCUMULATED_LENGTH) {
@@ -360,11 +362,15 @@ interface EventHandlers {
   readonly onToolUse: OnToolUse
   readonly onResult: OnResult
   readonly onError: OnError
+  readonly onNewTurn?: () => void
 }
 
 function handleStreamEvent(event: StreamEvent, handlers: EventHandlers): void {
   switch (event.type) {
     case 'assistant': {
+      // New assistant turn — reset accumulated to avoid leaking
+      // intermediate thinking text from previous turns
+      handlers.onNewTurn?.()
       const msg = (event as StreamAssistantMessage).message
       if (msg?.content) {
         for (const block of msg.content) {
