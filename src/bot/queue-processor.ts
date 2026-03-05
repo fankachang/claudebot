@@ -34,8 +34,12 @@ import { extractDigest, setContext } from './context-digest-store.js'
 import { autoCommitAndPush } from '../utils/auto-commit.js'
 import { env } from '../config/env.js'
 import { startDraft, updateDraft, finalizeDraft, cancelDraft, hasDraft } from './draft-sender.js'
+import path from 'node:path'
 
 const TIMEOUT_MS = 30 * 60 * 1000
+
+// Track projects already warned about missing CLAUDE.md (once per bot lifetime)
+const claudeMdWarned = new Set<string>()
 
 function deriveBotId(): string {
   const envArg = process.argv.find((_, i, arr) => arr[i - 1] === '--env')
@@ -430,6 +434,19 @@ export function setupQueueProcessor(bot: Telegraf<BotContext>): void {
           `\u{1F680} *[${tag}]* \u{8655}\u{7406}\u{4E2D}...\n_${aiLabel}_`,
           { parse_mode: 'Markdown' }
         )
+
+    // One-time warning if project has no CLAUDE.md (slows down Claude significantly)
+    if (!isDashboard && !claudeMdWarned.has(item.project.path)) {
+      claudeMdWarned.add(item.project.path)
+      const hasClaude = existsSync(path.join(item.project.path, 'CLAUDE.md'))
+      if (!hasClaude) {
+        telegram.sendMessage(
+          item.chatId,
+          `\u{1F4A1} *[${tag}]* \u{6B64}\u{5C08}\u{6848}\u{6C92}\u{6709} CLAUDE.md\u{FF0C}\u{53EF}\u{80FD}\u{6703}\u{8B93} Claude \u{8655}\u{7406}\u{8F03}\u{6162}\u{3002}\u{5EFA}\u{8B70}\u{7528} /claudemd \u{751F}\u{6210}\u{3002}`,
+          { parse_mode: 'Markdown', disable_notification: true },
+        ).catch(() => {})
+      }
+    }
 
     return new Promise<void>((resolve) => {
       const toolNames: string[] = []
