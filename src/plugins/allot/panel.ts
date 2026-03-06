@@ -41,16 +41,18 @@ export function buildMainPanel(): PanelResult {
   const onOff = config.enabled ? '\u{1F7E2} \u{555F}\u{7528}' : '\u{1F534} \u{505C}\u{7528}'
   const modeLabel = config.mode === 'auto' ? '\u{81EA}\u{9069}\u{61C9}' : '\u{624B}\u{52D5}'
 
-  const ratio = config.ratioPercent ?? 50
+  const ratio = config.ratioPercent ?? 20
+  const totalUsed = ratio * remoteCount
+  const totalWarn = totalUsed > 80 ? ' \u{26A0}\u{FE0F}' : ''
 
   const lines = [
     '\u{1F4CA} *Allot \u{984D}\u{5EA6}\u{7BA1}\u{7406}\u{9762}\u{677F}*',
     '',
     `${onOff} | \u{2699}\u{FE0F} ${modeLabel} | \u{1F465} Remote: ${remoteCount}`,
-    `\u{1F4B0} \u{9060}\u{7AEF}\u{4F54}\u{6BD4}: ${ratio}% | \u{672C}\u{6A5F}: ${100 - ratio}%`,
+    `\u{1F4B0} \u{6BCF}\u{53F0}: ${ratio}% | \u{7E3D}\u{4F54}: ${totalUsed}%${totalWarn}`,
     '',
-    `\u{23F1} Rate: ${config.rateBudget}t/5min \u{00D7} ${ratio}% (\u{6BCF}\u{53F0} ${perRemoteRateBudget(config)}t)`,
-    `\u{1F4C5} Weekly: ${config.weeklyBudget}t/wk \u{00D7} ${ratio}% (\u{6BCF}\u{53F0} ${perRemoteWeeklyBudget(config)}t)`,
+    `\u{23F1} Rate: ${config.rateBudget}t/5min \u{00D7} ${ratio}% = \u{6BCF}\u{53F0} ${perRemoteRateBudget(config)}t`,
+    `\u{1F4C5} Weekly: ${config.weeklyBudget}t/wk \u{00D7} ${ratio}% = \u{6BCF}\u{53F0} ${perRemoteWeeklyBudget(config)}t`,
     `\u{1F4CA} \u{908A}\u{969B}: ${config.marginPercent}% | \u{9810}\u{7559}: ${config.reserveAmount}t/req`,
   ]
 

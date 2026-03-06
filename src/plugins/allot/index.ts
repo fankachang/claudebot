@@ -101,7 +101,7 @@ async function allotCommand(ctx: BotContext): Promise<void> {
         break
       }
       updateConfig({ ratioPercent: r })
-      await ctx.reply(`\u{1F4B0} \u{9060}\u{7AEF}\u{4F54}\u{6BD4}\u{5DF2}\u{8A2D}\u{70BA} ${r}%\u{FF08}\u{672C}\u{6A5F} ${100 - r}%\u{FF09}`)
+      await ctx.reply(`\u{1F4B0} \u{6BCF}\u{53F0}\u{9060}\u{7AEF}\u{4F54}\u{6BD4}\u{5DF2}\u{8A2D}\u{70BA} ${r}%`)
       break
     }
 
@@ -178,10 +178,10 @@ async function handleCallback(ctx: BotContext, data: string): Promise<boolean> {
       break
     }
     case 'ratio_up':
-      updateConfig({ ratioPercent: Math.min(95, (getStore().load().config.ratioPercent ?? 50) + 10) })
+      updateConfig({ ratioPercent: Math.min(95, (getStore().load().config.ratioPercent ?? 20) + 10) })
       break
     case 'ratio_down':
-      updateConfig({ ratioPercent: Math.max(5, (getStore().load().config.ratioPercent ?? 50) - 10) })
+      updateConfig({ ratioPercent: Math.max(5, (getStore().load().config.ratioPercent ?? 20) - 10) })
       break
     case 'rate_up':
       updateConfig({ rateBudget: getStore().load().config.rateBudget + 5 })

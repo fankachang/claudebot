@@ -122,7 +122,7 @@ PLUGINS=screenshot,dice,allot
 
 ```
 /allot on          ← 啟用額度管控
-/allot ratio 60    ← 遠端總共佔 60%，你保留 40%
+/allot ratio 20    ← 每台 remote 固定佔 20%
 ```
 
 就這樣。自適應模式會自己調整 rate 預算（遇到 429 自動降，連續正常自動升）。
@@ -130,11 +130,21 @@ PLUGINS=screenshot,dice,allot
 ### 運作原理
 
 ```
-總預算 × 遠端佔比% / 遠端數量 × (1 - 安全邊際%) = 每台遠端的配額
+總預算 × 每台佔比% × (1 - 安全邊際%) = 每台遠端的配額
 ```
 
-舉例：`rateBudget=10, ratio=60%, 2台remote, margin=10%`
-→ 每台 `10 × 0.6 / 2 × 0.9 = 2.7 → 2 turns/5min`
+**每台 remote 的配額是固定的**，不會因為其他 remote 上下線而改變：
+
+```
+/allot ratio 20，rateBudget=10，margin=10%
+→ 每台 = 10 × 20% × 90% = 1.8 → 1 turn/5min
+
+1 台 remote → 遠端總佔 20%
+3 台 remote → 遠端總佔 60%
+5 台 remote → 遠端總佔 100% ⚠️
+```
+
+面板會顯示「總佔」百分比，超過 80% 時會出現 ⚠️ 警告。
 
 **你自己（本機）永遠不限制。**
 
