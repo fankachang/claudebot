@@ -17,22 +17,61 @@ import { env } from '../config/env.js'
 
 const TIMEOUT_MS = 60_000
 
-/** Resolve python executable — check common Windows install paths if not in PATH. */
-function resolvePython(): string {
-  if (process.platform !== 'win32') return 'python'
-  const localAppData = process.env.LOCALAPPDATA ?? ''
-  if (!localAppData) return 'python'
-  const pythonDir = join(localAppData, 'Programs', 'Python')
-  if (!existsSync(pythonDir)) return 'python'
-  // Find newest Python version (e.g. Python313, Python312)
-  const versions = readdirSync(pythonDir)
-    .filter((d: string) => d.startsWith('Python'))
-    .sort()
-    .reverse()
-  for (const ver of versions) {
-    const exe = join(pythonDir, ver, 'python.exe')
-    if (existsSync(exe)) return exe
+/** Try running a command — returns true if it exits successfully. */
+function canRun(cmd: string, args: readonly string[]): boolean {
+  try {
+    execSync(`"${cmd}" ${args.join(' ')}`, { stdio: 'pipe', timeout: 5_000 })
+    return true
+  } catch {
+    return false
   }
+}
+
+/** Resolve python executable — works across all install methods and platforms. */
+function resolvePython(): string {
+  // 1. python in PATH (most common case)
+  if (canRun('python', ['--version'])) return 'python'
+
+  // 2. python3 (Linux/Mac where only python3 exists)
+  if (canRun('python3', ['--version'])) return 'python3'
+
+  if (process.platform !== 'win32') return 'python'
+
+  // 3. Windows py launcher (installed by default, usually in PATH)
+  if (canRun('py', ['-3', '--version'])) return 'py'
+
+  // 4. Windows standard install: %LOCALAPPDATA%\Programs\Python\PythonXXX\
+  const localAppData = process.env.LOCALAPPDATA ?? ''
+  if (localAppData) {
+    const pythonDir = join(localAppData, 'Programs', 'Python')
+    if (existsSync(pythonDir)) {
+      const versions = readdirSync(pythonDir)
+        .filter((d: string) => d.startsWith('Python'))
+        .sort()
+        .reverse()
+      for (const ver of versions) {
+        const exe = join(pythonDir, ver, 'python.exe')
+        if (existsSync(exe)) return exe
+      }
+    }
+  }
+
+  // 5. Microsoft Store: %LOCALAPPDATA%\Microsoft\WindowsApps\
+  if (localAppData) {
+    const storePython = join(localAppData, 'Microsoft', 'WindowsApps', 'python.exe')
+    if (existsSync(storePython)) return storePython
+  }
+
+  // 6. Anaconda / Miniconda
+  const home = process.env.USERPROFILE ?? ''
+  if (home) {
+    for (const dir of ['anaconda3', 'miniconda3', 'Anaconda3', 'Miniconda3']) {
+      const exe = join(home, dir, 'python.exe')
+      if (existsSync(exe)) return exe
+    }
+  }
+
+  console.error('[sherpa] WARNING: python not found — voice recognition will fail')
   return 'python'
 }
 
