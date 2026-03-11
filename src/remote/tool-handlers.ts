@@ -3,10 +3,11 @@
  * Used by both CLI agent (agent.ts) and Electron app.
  */
 
-import { readFile, writeFile, readdir, stat, mkdir, open } from 'node:fs/promises'
-import { exec, spawn } from 'node:child_process'
+import { readFile, writeFile, readdir, stat, mkdir, open, unlink } from 'node:fs/promises'
+import { exec, execFile, spawn } from 'node:child_process'
 import { resolve, join, relative, sep, isAbsolute } from 'node:path'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
+import path from 'node:path'
 
 const MAX_FILE_SIZE = 500 * 1024
 const MAX_TRANSFER_SIZE = 20 * 1024 * 1024 // 20 MB for file transfer
@@ -391,6 +392,134 @@ async function handleListProjects(baseDir: string): Promise<string> {
   return JSON.stringify(projects)
 }
 
+// --- Agent-Browser helpers (N-side) ---
+
+const AB_TIMEOUT_MS = 30_000
+
+const BLOCKED_URL_RE =
+  /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|\[::1\]|0\.0\.0\.0)/i
+
+function validateUrl(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error(`Unsupported protocol: ${parsed.protocol}`)
+    }
+    if (BLOCKED_URL_RE.test(url)) {
+      throw new Error('Access to internal/private URLs is not allowed')
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Invalid URL: ${url}`)
+    }
+    throw error
+  }
+}
+
+function runAB(...args: readonly string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'agent-browser',
+      args as string[],
+      { timeout: AB_TIMEOUT_MS, shell: false, windowsHide: true },
+      (error, stdout, stderr) => {
+        if (error) {
+          const msg = stderr?.trim() || error.message
+          reject(new Error(msg))
+          return
+        }
+        resolve(stdout.trim())
+      },
+    )
+  })
+}
+
+let abAvailable: boolean | null = null
+
+function checkBrowserAvailable(): Promise<boolean> {
+  return new Promise((res) => {
+    execFile('agent-browser', ['--version'], { timeout: 3000, windowsHide: true }, (err) => res(!err))
+  })
+}
+
+async function ensureBrowserAvailable(): Promise<void> {
+  if (abAvailable === null) abAvailable = await checkBrowserAvailable()
+  if (!abAvailable) {
+    throw new Error('agent-browser not installed on remote. Install: npm i -g agent-browser')
+  }
+}
+
+function validateRef(ref: unknown): string {
+  const s = String(ref)
+  if (!/^e\d{1,6}$/.test(s)) throw new Error(`Invalid element ref: ${s}`)
+  return s
+}
+
+function validateKey(key: unknown): string {
+  const s = String(key)
+  if (s.length > 50) throw new Error('Key name too long')
+  return s
+}
+
+async function handleBrowserOpen(args: Record<string, unknown>): Promise<string> {
+  await ensureBrowserAvailable()
+  const url = String(args.url)
+  validateUrl(url)
+  const text = await runAB('open', url)
+  return text || `Navigated to ${url}`
+}
+
+async function handleBrowserSnapshot(): Promise<string> {
+  await ensureBrowserAvailable()
+  return await runAB('snapshot', '-i')
+}
+
+async function handleBrowserClick(args: Record<string, unknown>): Promise<string> {
+  await ensureBrowserAvailable()
+  const ref = validateRef(args.ref)
+  const text = await runAB('click', ref)
+  return text || `Clicked ${ref}`
+}
+
+async function handleBrowserFill(args: Record<string, unknown>): Promise<string> {
+  await ensureBrowserAvailable()
+  const ref = validateRef(args.ref)
+  const fillText = String(args.text)
+  const text = await runAB('fill', ref, fillText)
+  return text || `Filled ${ref}`
+}
+
+async function handleBrowserPress(args: Record<string, unknown>): Promise<string> {
+  await ensureBrowserAvailable()
+  const key = validateKey(args.key)
+  const text = await runAB('press', key)
+  return text || `Pressed ${key}`
+}
+
+async function handleBrowserScreenshot(): Promise<string> {
+  await ensureBrowserAvailable()
+  const screenshotPath = path.join(tmpdir(), `ab-screenshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`)
+  await runAB('screenshot', '--output', screenshotPath)
+  try {
+    const buffer = await readFile(screenshotPath)
+    const base64 = buffer.toString('base64')
+    return JSON.stringify({ type: 'image', base64, mimeType: 'image/png' })
+  } finally {
+    await unlink(screenshotPath).catch(() => {})
+  }
+}
+
+async function handleBrowserBack(): Promise<string> {
+  await ensureBrowserAvailable()
+  const text = await runAB('back')
+  return text || 'Navigated back'
+}
+
+async function handleBrowserGetUrl(): Promise<string> {
+  await ensureBrowserAvailable()
+  return await runAB('get', 'url')
+}
+
 export function createToolDispatcher(baseDir: string): ToolDispatcher {
   const validatePath = createPathValidator(baseDir)
 
@@ -408,6 +537,14 @@ export function createToolDispatcher(baseDir: string): ToolDispatcher {
         case 'remote_fetch_file': return handleFetchFile(args, validatePath)
         case 'remote_push_file': return handlePushFile(args, validatePath)
         case 'remote_list_projects': return handleListProjects(baseDir)
+        case 'ab_open': return handleBrowserOpen(args)
+        case 'ab_snapshot': return handleBrowserSnapshot()
+        case 'ab_click': return handleBrowserClick(args)
+        case 'ab_fill': return handleBrowserFill(args)
+        case 'ab_press': return handleBrowserPress(args)
+        case 'ab_screenshot': return handleBrowserScreenshot()
+        case 'ab_back': return handleBrowserBack()
+        case 'ab_get_url': return handleBrowserGetUrl()
         default: throw new Error(`Unknown tool: ${tool}`)
       }
     },

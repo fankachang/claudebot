@@ -162,6 +162,18 @@ export function runClaude(options: RunOptions): void {
         `4. 搜尋程式碼用 remote_grep，比 remote_search_files 快很多。\n` +
         `5. 修改檔案前先 remote_read_file 讀取完整內容。\n` +
         `\n` +
+        (env.MCP_AGENT_BROWSER
+          ? `瀏覽器操作（遠端機器）：\n` +
+            `- ab_open(url): 開啟網頁\n` +
+            `- ab_snapshot(): 取得頁面元素清單（互動元素 ref）\n` +
+            `- ab_click(ref): 點擊元素\n` +
+            `- ab_fill(ref, text): 填寫輸入欄位\n` +
+            `- ab_press(key): 按鍵（Enter, Escape, Tab）\n` +
+            `- ab_screenshot(): 截圖\n` +
+            `- ab_back(): 回上一頁\n` +
+            `- ab_get_url(): 取得當前網址\n` +
+            `\n`
+          : '') +
         `⚠️ 自我修改例外：\n` +
         `如果需要修改 ClaudeBot 專案本身的程式碼（當前工作目錄下的檔案），\n` +
         `一律使用本地工具（Read/Write/Edit/Bash），不要用 remote_* 工具。\n` +
@@ -218,17 +230,22 @@ export function runClaude(options: RunOptions): void {
     args.push('--resume', sessionId)
   }
 
+  // Determine if this is a remote session
+  const isRemoteSession = env.REMOTE_ENABLED && options.chatId
+    && getPairing(options.chatId, options.threadId)?.connected === true
+
   const mcpConfigs: string[] = []
   if (env.MCP_BROWSER) {
     mcpConfigs.push(path.resolve('data', 'mcp-browser.json'))
   }
-  if (env.MCP_AGENT_BROWSER) {
+  // Local agent-browser only when NOT remote — remote proxy provides ab_* tools
+  if (env.MCP_AGENT_BROWSER && !isRemoteSession) {
     mcpConfigs.push(path.resolve('data', 'mcp-agent-browser.json'))
   }
 
   // Dynamic remote pairing MCP config — only when REMOTE_ENABLED
   let remoteMcpConfigPath: string | null = null
-  if (env.REMOTE_ENABLED && options.chatId) {
+  if (isRemoteSession && options.chatId) {
     const pairing = getPairing(options.chatId, options.threadId)
     if (pairing?.connected) {
       const port = getRelayPort() || env.RELAY_PORT
