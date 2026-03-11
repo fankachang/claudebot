@@ -167,6 +167,7 @@ async function handleExecuteCommand(
       cwd,
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     })
 
     const timer = setTimeout(() => {
@@ -212,7 +213,7 @@ let rgAvailable: boolean | null = null
 
 function checkRgAvailable(): Promise<boolean> {
   return new Promise((res) => {
-    exec('rg --version', { timeout: 3000 }, (err) => res(!err))
+    exec('rg --version', { timeout: 3000, windowsHide: true }, (err) => res(!err))
   })
 }
 
@@ -235,7 +236,7 @@ async function handleGrep(
     : buildGrepCommand(escapedPattern, searchPath, include, maxResults)
 
   return new Promise((res) => {
-    exec(cmd, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 512 * 1024 }, (error, stdout) => {
+    exec(cmd, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 512 * 1024, windowsHide: true }, (error, stdout) => {
       if (stdout.trim()) {
         const lines = stdout.trim().split('\n').slice(0, maxResults)
         // Make paths relative to baseDir for readability
@@ -286,7 +287,7 @@ function handleSystemInfo(baseDir: string): Promise<string> {
 
   const cmd = cmds.join(' && ')
   return new Promise((res) => {
-    exec(cmd, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 256 * 1024, cwd: baseDir }, (error, stdout, stderr) => {
+    exec(cmd, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 256 * 1024, cwd: baseDir, windowsHide: true }, (error, stdout, stderr) => {
       const parts: string[] = []
       if (stdout.trim()) parts.push(stdout.trim())
       if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`)
@@ -311,7 +312,7 @@ async function handleProjectOverview(
 
   try {
     const tree = await new Promise<string>((res) => {
-      exec(treeCmd, { timeout: 10_000, maxBuffer: 128 * 1024 }, (_err, stdout) => {
+      exec(treeCmd, { timeout: 10_000, maxBuffer: 128 * 1024, windowsHide: true }, (_err, stdout) => {
         res(stdout.trim() || '(empty)')
       })
     })
@@ -335,7 +336,7 @@ async function handleProjectOverview(
   // 3. Git status
   try {
     const gitStatus = await new Promise<string>((res) => {
-      exec('git status --short && echo --- && git log --oneline -5', { cwd: projectPath, timeout: 10_000 }, (_err, stdout) => {
+      exec('git status --short && echo --- && git log --oneline -5', { cwd: projectPath, timeout: 10_000, windowsHide: true }, (_err, stdout) => {
         res(stdout.trim() || '(not a git repo)')
       })
     })

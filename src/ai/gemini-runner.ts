@@ -23,7 +23,7 @@ function resolveGeminiCli(): { cmd: string; prefix: readonly string[]; shell: bo
     return { cmd: 'gemini', prefix: [], shell: false }
   }
   try {
-    const cmdPath = execSync('where gemini.cmd', { encoding: 'utf-8' }).trim().split('\n')[0].trim()
+    const cmdPath = execSync('where gemini.cmd', { encoding: 'utf-8', windowsHide: true }).trim().split('\n')[0].trim()
     const dir = path.dirname(cmdPath)
     const content = readFileSync(cmdPath, 'utf-8')
     // Extract JS entry point from npm .cmd shim (e.g. "%~dp0\node_modules\pkg\cli.js")
