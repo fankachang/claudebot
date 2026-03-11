@@ -10,12 +10,33 @@
  */
 
 import { spawn, execSync, type ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { createInterface, type Interface } from 'node:readline'
 import { join } from 'node:path'
 import { env } from '../config/env.js'
 
 const TIMEOUT_MS = 60_000
+
+/** Resolve python executable — check common Windows install paths if not in PATH. */
+function resolvePython(): string {
+  if (process.platform !== 'win32') return 'python'
+  const localAppData = process.env.LOCALAPPDATA ?? ''
+  if (!localAppData) return 'python'
+  const pythonDir = join(localAppData, 'Programs', 'Python')
+  if (!existsSync(pythonDir)) return 'python'
+  // Find newest Python version (e.g. Python313, Python312)
+  const versions = readdirSync(pythonDir)
+    .filter((d: string) => d.startsWith('Python'))
+    .sort()
+    .reverse()
+  for (const ver of versions) {
+    const exe = join(pythonDir, ver, 'python.exe')
+    if (existsSync(exe)) return exe
+  }
+  return 'python'
+}
+
+export const PYTHON_EXE = resolvePython()
 
 /* ── Auto-restart crash loop protection ── */
 const MAX_CRASHES = 3
@@ -110,7 +131,8 @@ function ensureProcess(): void {
   const serverPath = resolveServerPath()
 
   // --speed 2: fast processing, np.interp resampling + Gemini LLM fixes errors
-  proc = spawn('python', [serverPath, '--speed', '2'], {
+  console.error(`[sherpa] spawning: ${PYTHON_EXE} ${serverPath} --speed 2`)
+  proc = spawn(PYTHON_EXE, [serverPath, '--speed', '2'], {
     shell: false,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
