@@ -19,6 +19,7 @@ import { promisify } from 'node:util'
 import type { BotContext } from '../../types/context.js'
 import { getUserState } from '../state.js'
 import { transcribeAudio, isSherpaAvailable, PYTHON_EXE } from '../../asr/sherpa-client.js'
+import ffmpegPath from 'ffmpeg-static'
 import { env } from '../../config/env.js'
 import { getAsrMode, consumeAsrMode } from '../asr-store.js'
 import { addVoice, getVoiceActive } from '../ordered-message-buffer.js'
@@ -183,7 +184,7 @@ export async function transcribeVoiceFile(
     await writeFile(oggPath, buffer)
 
     try {
-      await execFileAsync('ffmpeg', [
+      await execFileAsync(ffmpegPath ?? 'ffmpeg', [
         '-i', oggPath,
         '-ar', '16000', '-ac', '1', '-f', 'wav', '-y', wavPath,
       ], { timeout: 30_000 })
