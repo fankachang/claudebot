@@ -587,19 +587,30 @@ async function handleBrowserConnect(): Promise<string> {
       ? join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome')
       : join(homedir(), '.config', 'google-chrome')
 
-  const chromeArgs = [
-    `--remote-debugging-port=${CDP_PORT}`,
-    `--user-data-dir="${profileDir}"`,                // quoted — path contains spaces on Windows
-    '--restore-last-session',                         // keep user's tabs & login state
-    '--disable-blink-features=AutomationControlled',  // don't trigger Google bot detection
-  ]
-  const child = spawn(chromePath, chromeArgs, {
-    detached: true,
-    stdio: 'ignore',
-    shell: true,      // shell: true so Windows cmd handles quoted --user-data-dir path
-    windowsHide: false, // user should see Chrome open
-  })
-  child.unref()
+  // Use exec + PowerShell Start-Process on Windows to avoid Node spawn quoting
+  // --user-data-dir with spaces. Node spawn always adds quotes around args with
+  // spaces, which Chrome misinterprets and silently ignores --remote-debugging-port.
+  if (IS_WIN) {
+    const args = [
+      `--remote-debugging-port=${CDP_PORT}`,
+      `--user-data-dir=${profileDir}`,
+      '--restore-last-session',
+      '--disable-blink-features=AutomationControlled',
+    ].map((a) => `'${a}'`).join(',')
+    exec(
+      `powershell -NoProfile -Command "Start-Process '${chromePath}' -ArgumentList ${args}"`,
+      { windowsHide: true },
+      () => {},
+    )
+  } else {
+    const child = spawn(chromePath, [
+      `--remote-debugging-port=${CDP_PORT}`,
+      `--user-data-dir=${profileDir}`,
+      '--restore-last-session',
+      '--disable-blink-features=AutomationControlled',
+    ], { detached: true, stdio: 'ignore' })
+    child.unref()
+  }
 
   // Step 8: Poll CDP until ready (max 20s)
   const deadline = Date.now() + 20_000
@@ -725,30 +736,44 @@ async function findChromePath(): Promise<string> {
 }
 
 /**
- * Graceful Chrome shutdown: send WM_CLOSE first (lets Chrome save session),
- * wait up to 5s, then force kill if still alive.
+ * Shut down Chrome completely so the next launch owns the singleton.
+ *
+ * Windows Chrome single-instance: if ANY chrome.exe is still alive,
+ * a new launch just talks to it and exits — CDP flag gets ignored.
+ * Must kill the entire process tree including background/helper processes.
  */
 async function shutdownChrome(): Promise<void> {
   if (IS_WIN) {
-    // Graceful: taskkill WITHOUT /F sends WM_CLOSE → Chrome saves session
+    // Step A: Graceful close (WM_CLOSE) → Chrome saves session/cookies
     await execPromise('taskkill /IM chrome.exe')
+
+    // Wait for graceful exit (max 6s)
+    if (await waitForChromeExit(6_000)) {
+      // Even after graceful exit, wait for file handles to release
+      await new Promise((res) => setTimeout(res, 500))
+      return
+    }
+
+    // Step B: Force kill entire process tree (/T) + any chrome_proxy
+    await execPromise('taskkill /F /T /IM chrome.exe')
+    await execPromise('taskkill /F /IM chrome_proxy.exe')
+
+    // Wait for force kill (max 3s)
+    await waitForChromeExit(3_000)
+
+    // Step C: Nuclear — kill anything holding CDP port
+    await execPromise(
+      `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${CDP_PORT} ^| findstr LISTENING') do taskkill /F /PID %a`,
+    )
   } else {
-    // SIGTERM = graceful
     await execPromise('pkill -f chrome')
-  }
-
-  // Wait for graceful exit (max 8s — Chrome needs time to save session/cookies)
-  if (await waitForChromeExit(8_000)) return
-
-  // Still alive → force kill
-  if (IS_WIN) {
-    await execPromise('taskkill /F /IM chrome.exe')
-  } else {
+    if (await waitForChromeExit(6_000)) return
     await execPromise('pkill -9 -f chrome')
+    await waitForChromeExit(3_000)
   }
 
-  // Wait for force kill (max 3s)
-  await waitForChromeExit(3_000)
+  // Final wait for file handles / port release
+  await new Promise((res) => setTimeout(res, 500))
 }
 
 /** Returns true if Chrome exited within timeoutMs. */
