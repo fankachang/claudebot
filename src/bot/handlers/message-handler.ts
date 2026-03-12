@@ -156,6 +156,30 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
     }
 
     const remoteProject = { name: 'remote', path: process.cwd() }
+
+    // Steer mode: "!" prefix cancels current remote process and replaces
+    if (text.startsWith('!') && isProcessing(remoteProject.path)) {
+      const steerText = text.slice(1).trim()
+      if (!steerText) {
+        await ctx.reply('用法: !<訊息> 取消目前並傳送新提示')
+        return
+      }
+      clearBuffer(chatId, threadId)
+      cancelAnyRunning(remoteProject.path)
+      const sessionId = getAISessionId(resolveBackend(state.ai.backend), remoteProject.path)
+      enqueue({
+        chatId,
+        threadId,
+        prompt: replyQuote + steerText,
+        project: remoteProject,
+        ai: state.ai,
+        sessionId,
+        imagePaths: [],
+      })
+      await ctx.reply('🔄 [remote] 已轉向 — 取消目前，處理新提示')
+      return
+    }
+
     const sessionId = getAISessionId(resolveBackend(state.ai.backend), remoteProject.path)
     enqueue({
       chatId,
