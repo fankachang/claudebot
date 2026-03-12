@@ -587,28 +587,28 @@ async function handleBrowserConnect(): Promise<string> {
       ? join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome')
       : join(homedir(), '.config', 'google-chrome')
 
+  // Detect which Chrome profile to use (user may not be on "Default")
+  const profileName = await detectChromeProfile(profileDir)
+
   // Use exec + PowerShell Start-Process on Windows to avoid Node spawn quoting
   // --user-data-dir with spaces. Node spawn always adds quotes around args with
   // spaces, which Chrome misinterprets and silently ignores --remote-debugging-port.
+  const commonArgs = [
+    `--remote-debugging-port=${CDP_PORT}`,
+    `--user-data-dir=${profileDir}`,
+    `--profile-directory=${profileName}`,
+    '--restore-last-session',
+    '--disable-blink-features=AutomationControlled',
+  ]
   if (IS_WIN) {
-    const args = [
-      `--remote-debugging-port=${CDP_PORT}`,
-      `--user-data-dir=${profileDir}`,
-      '--restore-last-session',
-      '--disable-blink-features=AutomationControlled',
-    ].map((a) => `'${a}'`).join(',')
+    const psArgs = commonArgs.map((a) => `'${a}'`).join(',')
     exec(
-      `powershell -NoProfile -Command "Start-Process '${chromePath}' -ArgumentList ${args}"`,
+      `powershell -NoProfile -Command "Start-Process '${chromePath}' -ArgumentList ${psArgs}"`,
       { windowsHide: true },
       () => {},
     )
   } else {
-    const child = spawn(chromePath, [
-      `--remote-debugging-port=${CDP_PORT}`,
-      `--user-data-dir=${profileDir}`,
-      '--restore-last-session',
-      '--disable-blink-features=AutomationControlled',
-    ], { detached: true, stdio: 'ignore' })
+    const child = spawn(chromePath, commonArgs, { detached: true, stdio: 'ignore' })
     child.unref()
   }
 
