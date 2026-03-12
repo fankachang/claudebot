@@ -120,8 +120,13 @@ export const geminiRunner: AIRunner = {
 
     const resolvedModel = resolveModel(model)
 
+    // Gemini CLI has no --system-prompt flag, so prepend language hint on first turn
+    const effectivePrompt = sessionId
+      ? prompt
+      : `[請用繁體中文回覆，除非用戶寫英文]\n\n${prompt}`
+
     const args = [
-      '--prompt', prompt,
+      '--prompt', effectivePrompt,
       '--output-format', 'stream-json',
       '--model', resolvedModel,
       '--sandbox', 'false',
