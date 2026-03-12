@@ -120,12 +120,16 @@ export async function messageHandler(ctx: BotContext): Promise<void> {
   if (chatMatch) {
     const chatPrompt = chatMatch[1].replace(/^\(|\)$/g, '').trim()
     if (chatPrompt) {
-      const generalProject = { name: 'general', path: process.cwd() }
-      const sessionId = getAISessionId(resolveBackend(state.ai.backend), generalProject.path)
+      // Use remote project if paired, otherwise general
+      const chatPairing = env.REMOTE_ENABLED ? getPairing(chatId, threadId) : null
+      const chatProject = chatPairing?.connected
+        ? { name: 'remote', path: process.cwd() }
+        : { name: 'general', path: process.cwd() }
+      const sessionId = getAISessionId(resolveBackend(state.ai.backend), chatProject.path)
       enqueue({
         chatId,
         prompt: replyQuote + chatPrompt,
-        project: generalProject,
+        project: chatProject,
         ai: state.ai,
         sessionId,
         imagePaths: [],
