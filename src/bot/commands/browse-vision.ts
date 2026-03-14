@@ -513,43 +513,21 @@ async function handleSavePlaybook(
     return
   }
 
-  // --- Manual save (with name) ---
-  if (name) {
-    if (!isValidPlaybookName(name)) {
-      await ctx.reply('Playbook 名稱只能使用英數字、中文、底線、連字號 (最長50字)')
-      return
-    }
-
-    savePlaybook({
-      name,
-      url: lastResult.url,
-      instruction: lastResult.instruction,
-      actions: allActions,
-      createdAt: new Date().toISOString(),
-      chatId,
-    })
-
-    const fillCount = allActions.filter((a) => a.type === 'fill').length
-    await ctx.reply(
-      `📋 Playbook "${name}" 已儲存\n` +
-      `🌐 ${lastResult.url}\n` +
-      `📊 ${allActions.length} 動作` +
-      (fillCount > 0 ? ` (${fillCount} 個填入欄位)` : '') +
-      `\n\n回放: \`/bv play ${name} [新指令]\``,
-      { parse_mode: 'Markdown' },
-    )
+  // Validate name prefix if given
+  if (name && !isValidPlaybookName(name)) {
+    await ctx.reply('Playbook 名稱只能使用英數字、中文、底線、連字號 (最長50字)')
     return
   }
 
-  // --- Auto-split save (no name) ---
+  // --- Always auto-split (name is used as prefix if provided) ---
   const statusMsg = await ctx.reply('🔍 AI 分析步驟，自動拆分 playbook...')
 
   const splitResult = await autoSplitSteps(lastResult.url, lastResult.instruction, lastResult.steps)
 
   if (splitResult.error || splitResult.groups.length === 0) {
-    // Fallback: save as single playbook with auto-generated name
+    // Fallback: save as single playbook
     const domain = new URL(lastResult.url).hostname.replace(/^www\./, '').split('.')[0]
-    const fallbackName = `${domain}-自動化`
+    const fallbackName = name || `${domain}-自動化`
     savePlaybook({
       name: fallbackName,
       url: lastResult.url,
@@ -580,8 +558,10 @@ async function handleSavePlaybook(
     // Build instruction from the steps' thoughts
     const groupInstruction = group.description
 
+    const groupName = name ? `${name}-${group.name}` : group.name
+
     savePlaybook({
-      name: group.name,
+      name: groupName,
       url: lastResult.url,
       instruction: groupInstruction,
       actions: groupActions,
@@ -589,7 +569,7 @@ async function handleSavePlaybook(
       chatId,
     })
 
-    savedNames.push(group.name)
+    savedNames.push(groupName)
   }
 
   if (savedNames.length === 0) {
