@@ -11,7 +11,7 @@ const TIMEOUT_MS = 30_000
 // --- Types ---
 
 export interface AgentAction {
-  readonly type: 'click' | 'click_xy' | 'fill' | 'press' | 'scroll' | 'navigate' | 'done'
+  readonly type: 'click' | 'click_xy' | 'deep_click' | 'fill' | 'press' | 'scroll' | 'navigate' | 'done'
   readonly selector?: string
   readonly text?: string
   readonly x?: number
@@ -43,7 +43,7 @@ const AGENT_RESPONSE_SCHEMA = {
     action: {
       type: 'OBJECT' as const,
       properties: {
-        type: { type: 'STRING' as const, enum: ['click', 'click_xy', 'fill', 'press', 'scroll', 'navigate', 'done'] },
+        type: { type: 'STRING' as const, enum: ['click', 'click_xy', 'deep_click', 'fill', 'press', 'scroll', 'navigate', 'done'] },
         selector: { type: 'STRING' as const, description: 'Element selector: role=button[name="X"], text="Y", or CSS selector' },
         text: { type: 'STRING' as const, description: 'Text to fill or key to press or URL to navigate to' },
         x: { type: 'NUMBER' as const, description: 'X coordinate for click_xy (0-1280)' },
@@ -97,6 +97,8 @@ function buildAgentPrompt(
     '- IMPORTANT: Selectors MUST use the role= prefix for ARIA roles, e.g. role=combobox[name="Search"], role=button[name="Submit"]\n' +
     '- IMPORTANT: For text selectors, use ONLY the clickable element\'s own text, NOT surrounding text\n' +
     '- IMPORTANT: If a click action fails with "元素不存在", switch to click_xy and provide the x,y pixel coordinates of the element on the screenshot (viewport is 1280x720). This bypasses DOM issues.\n' +
+    '- For deep_click actions, provide the visible text of the element in text field — this walks the entire DOM including shadow DOM and iframes to find and click it\n' +
+    '- IMPORTANT: If click and click_xy both fail for an element, use deep_click with the element\'s visible text. deep_click bypasses all selector issues by walking the raw DOM.\n' +
     '- PREFER click_xy over click when you can see the element in the screenshot but the accessibility tree doesn\'t show a clear selector for it'
   )
 }
