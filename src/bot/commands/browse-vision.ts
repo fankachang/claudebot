@@ -89,7 +89,8 @@ export async function browseVisionCommand(ctx: BotContext): Promise<void> {
       '`/bv save` — AI 自動拆分儲存 playbook\n' +
       '`/bv save <名稱>` — 手動儲存為單一 playbook\n' +
       '`/bv play <名稱> [新指令]` — 回放 playbook\n' +
-      '`/bv playbooks` — 列出所有 playbook\n' +
+      '`/bv playbook` — 列出所有 playbook\n' +
+      '`/bv playbook info <名稱>` — 查看詳細步驟\n' +
       '`/bv playbook delete <名稱>` — 刪除\n\n' +
       '💡 有 playbook 時，`/bv <URL> <指令>` 自動匹配回放\n\n' +
       '*取消:*\n' +
@@ -120,12 +121,17 @@ export async function browseVisionCommand(ctx: BotContext): Promise<void> {
     await handlePlayPlaybook(ctx, chatId, args.slice(5).trim())
     return
   }
-  if (argsLower === 'playbooks') {
+  if (argsLower === 'playbooks' || argsLower === 'playbook' || argsLower === 'playbook list') {
     await handleListPlaybooks(ctx)
     return
   }
-  if (argsLower.startsWith('playbook delete ')) {
-    await handleDeletePlaybook(ctx, args.slice(16).trim())
+  if (argsLower.startsWith('playbook delete ') || argsLower.startsWith('playbooks delete ')) {
+    const prefix = argsLower.startsWith('playbooks') ? 'playbooks delete ' : 'playbook delete '
+    await handleDeletePlaybook(ctx, args.slice(prefix.length).trim())
+    return
+  }
+  if (argsLower.startsWith('playbook info ')) {
+    await handlePlaybookInfo(ctx, args.slice(14).trim())
     return
   }
 
@@ -737,6 +743,43 @@ async function handleListPlaybooks(ctx: BotContext): Promise<void> {
     })
     await ctx.reply(plain.join('\n'))
   }
+}
+
+async function handlePlaybookInfo(ctx: BotContext, name: string): Promise<void> {
+  if (!name || !isValidPlaybookName(name)) {
+    await ctx.reply('用法: `/bv playbook info <名稱>`', { parse_mode: 'Markdown' })
+    return
+  }
+
+  const pb = getPlaybook(name)
+  if (!pb) {
+    await ctx.reply(`找不到 playbook "${name}"`)
+    return
+  }
+
+  const stepsText = pb.actions
+    .map((a, i) => {
+      const detail = a.type === 'fill'
+        ? `填入 "${a.fieldLabel ?? a.selector ?? '?'}" → "${a.text ?? ''}"`
+        : a.type === 'click' ? `點擊 ${a.selector ?? ''}`
+        : a.type === 'click_xy' ? `座標點擊 (${a.x}, ${a.y})`
+        : a.type === 'deep_click' ? `深層點擊 "${a.text ?? ''}"`
+        : a.type === 'press' ? `按鍵 ${a.text ?? ''}`
+        : a.type === 'scroll' ? `捲動 ${a.text ?? 'down'}`
+        : a.type === 'navigate' ? `導航 ${a.text ?? ''}`
+        : a.type
+      return `${i + 1}. ${a.type} — ${detail}`
+    })
+    .join('\n')
+
+  const fillCount = pb.actions.filter((a) => a.type === 'fill').length
+  await ctx.reply(
+    `📋 Playbook: ${pb.name}\n` +
+    `🌐 ${pb.url}\n` +
+    `📊 ${pb.actions.length} 動作${fillCount > 0 ? ` (${fillCount} 填入)` : ''}\n` +
+    `📅 ${pb.createdAt.slice(0, 10)}\n\n` +
+    `步驟:\n${stepsText}`,
+  )
 }
 
 async function handleDeletePlaybook(ctx: BotContext, name: string): Promise<void> {
