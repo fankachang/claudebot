@@ -131,6 +131,11 @@ export async function sessionFill(session: BrowserSession, selector: string, tex
   await locator.first().fill(text, { timeout: ACTION_TIMEOUT_MS })
 }
 
+export async function sessionClickXY(session: BrowserSession, x: number, y: number): Promise<void> {
+  resetSessionIdle(session.chatId)
+  await session.page.mouse.click(x, y)
+}
+
 export async function sessionPress(session: BrowserSession, key: string): Promise<void> {
   resetSessionIdle(session.chatId)
   await session.page.keyboard.press(key)
