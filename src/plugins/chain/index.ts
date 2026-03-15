@@ -13,7 +13,7 @@ function parseSteps(text: string): ChainStep[] {
   const steps: ChainStep[] = []
 
   for (const line of lines) {
-    // Check known prefixes: "bv ...", "pipe ...", "notify ...", "wait ..."
+    // Check known prefixes: "bv ...", "pipe ...", "notify ...", "wait ...", "cmd ..."
     const prefix = STEP_PREFIXES.find((p) => {
       const lower = line.toLowerCase()
       return lower === p || lower.startsWith(p + ' ')
@@ -25,8 +25,12 @@ function parseSteps(text: string): ChainStep[] {
     } else if (line.startsWith('/')) {
       // Bot command: "/deploy", "/schedule list"
       steps.push({ type: 'cmd', instruction: line })
+    } else if (steps.length > 0) {
+      // No prefix — append to previous step's instruction (continuation line)
+      const prev = steps[steps.length - 1]
+      steps[steps.length - 1] = { ...prev, instruction: `${prev.instruction} ${line}` }
     } else {
-      // Default: treat as notify
+      // First line with no prefix — treat as notify
       steps.push({ type: 'notify', instruction: line })
     }
   }
