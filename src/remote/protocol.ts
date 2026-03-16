@@ -32,6 +32,13 @@ export interface RelayError {
   readonly error: string
 }
 
+// --- Agent shutdown notification ---
+
+export interface AgentShutdown {
+  readonly type: 'agent_shutdown'
+  readonly reason: string
+}
+
 // --- Tool call forwarding (unchanged, used after handshake) ---
 
 export interface ToolCallRequest {
@@ -56,7 +63,7 @@ export interface ToolCallError {
 // --- Union types ---
 
 /** Messages the relay receives */
-export type RelayInbound = AgentRegister | ProxyConnect | ToolCallRequest | ToolCallResult | ToolCallError
+export type RelayInbound = AgentRegister | ProxyConnect | AgentShutdown | ToolCallRequest | ToolCallResult | ToolCallError
 
 /** Messages the relay sends back */
 export type RelayOutbound = AgentRegistered | ProxyConnected | RelayError | ToolCallRequest | ToolCallResult | ToolCallError

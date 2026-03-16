@@ -366,10 +366,10 @@ export async function createBot(): Promise<Telegraf<BotContext>> {
       { parse_mode: 'Markdown' },
     ).catch(() => {})
   })
-  onPairingDisconnect((session) => {
+  onPairingDisconnect((session, _label, reason) => {
     bot.telegram.sendMessage(
       session.chatId,
-      '🔌 遠端已斷開連線',
+      `🔌 遠端已斷開 — ${reason ?? '連線中斷'}`,
     ).catch(() => {})
   })
 

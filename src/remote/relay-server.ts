@@ -25,6 +25,7 @@ import type {
   ToolCallRequest,
   ToolCallResult,
   ToolCallError,
+  AgentShutdown,
 } from './protocol.js'
 
 interface PairedAgent {
@@ -46,6 +47,9 @@ const proxies = new Map<string, Set<PairedProxy>>()
 
 /** Route tool results to the proxy that sent the request: code → (requestId → proxy ws) */
 const requestOrigins = new Map<string, Map<number, WebSocket>>()
+
+/** Agents that sent a graceful shutdown message: code → reason */
+const gracefulShutdowns = new Map<string, string>()
 
 /** Rate limiting: IP → { attempts, lastAttempt } */
 const rateLimits = new Map<string, { attempts: number; resetAt: number }>()
@@ -146,6 +150,14 @@ function handleProxyConnect(ws: WebSocket, code: string): void {
 }
 
 function handleAgentMessage(_ws: WebSocket, code: string, msg: RelayInbound): void {
+  // Graceful shutdown notification from agent
+  if (msg.type === 'agent_shutdown') {
+    const reason = (msg as AgentShutdown).reason || '手動關閉'
+    gracefulShutdowns.set(code, reason)
+    console.log(`[relay] Agent graceful shutdown: code=${code} reason=${reason}`)
+    return
+  }
+
   // Route tool_result / tool_error to the ORIGINATING proxy only
   if (msg.type === 'tool_result' || msg.type === 'tool_error') {
     // Check if this is a bot-initiated call first
@@ -172,11 +184,11 @@ const botPendingCalls = new Map<number, { resolve: (result: string) => void; tim
  * Call a tool on a remote agent directly from the bot (not via MCP proxy).
  * Used for /projects, /chat, etc. on remote-only users.
  */
-export function callAgentTool(
+function callAgentToolOnce(
   code: string,
   tool: string,
   args: Record<string, unknown>,
-  timeoutMs = 10_000,
+  timeoutMs: number,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const agent = agents.get(code)
@@ -195,6 +207,25 @@ export function callAgentTool(
 
     send(agent.ws, { type: 'tool_call', id, tool, args })
   })
+}
+
+/** Retry wrapper: retries once on timeout, does NOT retry on disconnect errors. */
+export async function callAgentTool(
+  code: string,
+  tool: string,
+  args: Record<string, unknown>,
+  timeoutMs = 10_000,
+): Promise<string> {
+  try {
+    return await callAgentToolOnce(code, tool, args, timeoutMs)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // Only retry on timeout — disconnect errors won't succeed on retry
+    if (msg.includes('timeout')) {
+      return callAgentToolOnce(code, tool, args, timeoutMs)
+    }
+    throw err
+  }
 }
 
 /** Route bot-initiated tool results (called from handleAgentMessage) */
@@ -294,7 +325,11 @@ export function startRelayServer(port: number): void {
         const current = agents.get(assignedCode)
         if (current?.ws === ws) {
           agents.delete(assignedCode)
-          markDisconnected(assignedCode)
+
+          // Check if this was a graceful shutdown
+          const gracefulReason = gracefulShutdowns.get(assignedCode)
+          gracefulShutdowns.delete(assignedCode)
+          markDisconnected(assignedCode, gracefulReason)
 
           // Reject all pending proxy requests for this agent
           const origins = requestOrigins.get(assignedCode)
@@ -312,7 +347,7 @@ export function startRelayServer(port: number): void {
             botPendingCalls.delete(id)
           }
 
-          console.log(`[relay] Agent disconnected: code=${assignedCode}`)
+          console.log(`[relay] Agent disconnected: code=${assignedCode} reason=${gracefulReason ?? '連線中斷'}`)
         }
       }
     })
