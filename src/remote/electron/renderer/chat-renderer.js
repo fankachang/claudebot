@@ -45,6 +45,9 @@ let localMsgId = 1
 /** Timer to auto-hide typing indicator */
 let typingTimer = null
 
+/** Prevent duplicate welcome messages (chat + agent both fire 'connected') */
+let welcomeShown = false
+
 const STATUS_LABELS = {
   disconnected: 'Disconnected',
   connecting: 'Connecting...',
@@ -207,7 +210,10 @@ api.onStatus((status) => {
   if (status === 'connected') {
     connectPanel.classList.add('hidden')
     chatPanel.classList.remove('hidden')
-    appendBubble(localMsgId++, 'ClaudeBot 已連線\n輸入 `/` 查看可用指令', 'bot')
+    if (!welcomeShown) {
+      welcomeShown = true
+      appendBubble(localMsgId++, 'ClaudeBot 已連線\n輸入 `/` 查看可用指令', 'bot')
+    }
     messageInput.focus()
   } else if (status === 'connecting') {
     // Auto-connect: skip connection panel, show chat with connecting state
