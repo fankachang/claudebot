@@ -4,6 +4,22 @@
 
 const api = window.electronAPI
 
+// --- Markdown config ---
+
+if (typeof marked !== 'undefined') {
+  marked.setOptions({ breaks: true, gfm: true })
+}
+
+/** Render markdown to sanitized HTML (bot messages only) */
+function renderMarkdown(text) {
+  if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+    const el = document.createElement('span')
+    el.textContent = text
+    return el.innerHTML
+  }
+  return DOMPurify.sanitize(marked.parse(text))
+}
+
 // --- DOM references ---
 
 const statusDot = document.getElementById('status-dot')
@@ -68,15 +84,32 @@ function hideTyping() {
  * @param {string} text - Message text
  * @param {'user'|'bot'} sender
  * @param {Array<Array<{text: string, data: string}>>} [buttons]
+ * @param {{ mediaUrl?: string, mediaType?: string }} [media]
  */
-function appendBubble(id, text, sender, buttons) {
+function appendBubble(id, text, sender, buttons, media) {
   const row = document.createElement('div')
   row.className = `bubble-row ${sender}`
   row.dataset.msgId = String(id)
 
   const bubble = document.createElement('div')
   bubble.className = 'bubble'
-  bubble.textContent = text
+
+  if (sender === 'bot') {
+    bubble.innerHTML = renderMarkdown(text)
+  } else {
+    bubble.textContent = text
+  }
+
+  // Media rendering (images)
+  if (media && media.mediaUrl && media.mediaType === 'image') {
+    const img = document.createElement('img')
+    img.src = media.mediaUrl
+    img.className = 'bubble-media'
+    img.alt = 'image'
+    img.addEventListener('click', () => window.open(media.mediaUrl, '_blank'))
+    bubble.appendChild(img)
+  }
+
   row.appendChild(bubble)
 
   if (buttons && buttons.length > 0) {
@@ -109,7 +142,14 @@ function updateBubble(id, text) {
   const row = bubbles.get(id)
   if (row) {
     const bubble = row.querySelector('.bubble')
-    if (bubble) bubble.textContent = text
+    if (bubble) {
+      const isBot = row.classList.contains('bot')
+      if (isBot) {
+        bubble.innerHTML = renderMarkdown(text)
+      } else {
+        bubble.textContent = text
+      }
+    }
     scrollToBottom()
   }
 }
@@ -143,7 +183,8 @@ function handleButtonClick(data, messageId) {
 
 api.onChatMessage((msg) => {
   hideTyping()
-  appendBubble(msg.messageId, msg.text, 'bot', msg.buttons)
+  const media = msg.mediaUrl ? { mediaUrl: msg.mediaUrl, mediaType: msg.mediaType } : undefined
+  appendBubble(msg.messageId, msg.text, 'bot', msg.buttons, media)
 })
 
 api.onChatEdit((msg) => {
@@ -215,6 +256,24 @@ inputCode.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     btnConnect.click()
   }
+})
+
+// --- Window controls ---
+
+document.getElementById('btn-minimize').addEventListener('click', () => api.minimizeWindow())
+document.getElementById('btn-close').addEventListener('click', () => api.closeWindow())
+
+const btnPin = document.getElementById('btn-pin')
+btnPin.addEventListener('click', async () => {
+  const isOnTop = await api.toggleAlwaysOnTop()
+  btnPin.classList.toggle('active', isOnTop)
+})
+
+const btnCompact = document.getElementById('btn-compact')
+btnCompact.addEventListener('click', async () => {
+  const compact = await api.toggleCompact()
+  document.body.classList.toggle('compact', compact)
+  btnCompact.textContent = compact ? '\u25F3' : '\u25FB'
 })
 
 // Auto-focus pairing code
