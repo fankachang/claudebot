@@ -12,6 +12,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, appendFileSync } fr
 import { randomUUID } from 'node:crypto'
 import { WebSocket } from 'ws'
 
+// --- GPU workaround: remote desktop / VM environments hang on GPU init ---
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+
 // --- File-based diagnostics (stderr may be swallowed by Electron/npx) ---
 
 const LOG_PATH = resolve(process.cwd(), 'data', 'electron-debug.log')

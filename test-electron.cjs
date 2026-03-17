@@ -94,9 +94,10 @@ for (const [label, p] of checks) {
 }
 
 // 6. Try actually spawning electron with a minimal script
-console.log('\n--- Spawning electron with minimal test script ---\n')
-const testResult = spawnSync(electronBin, ['-e', `
+console.log('\n--- Spawning electron with minimal test script (GPU disabled) ---\n')
+const testResult = spawnSync(electronBin, ['--disable-gpu', '--no-sandbox', '--disable-software-rasterizer', '-e', `
   const { app } = require('electron');
+  app.disableHardwareAcceleration();
   app.whenReady().then(() => {
     console.log('ELECTRON_OK');
     app.quit();
