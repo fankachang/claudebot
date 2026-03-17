@@ -136,9 +136,7 @@ export function runClaude(options: RunOptions): void {
   // but Electron virtual chats are ALWAYS remote by definition
   if (options.chatId) {
     const pairing = env.REMOTE_ENABLED ? getPairing(options.chatId, options.threadId) : null
-    const isVirtual = isVirtualChat(options.chatId)
-    const isRemote = pairing?.connected === true || isVirtual
-    console.error(`[claude-runner] remote check: chatId=${options.chatId} REMOTE_ENABLED=${env.REMOTE_ENABLED} pairing=${!!pairing?.connected} isVirtual=${isVirtual} isRemote=${isRemote}`)
+    const isRemote = pairing?.connected === true || isVirtualChat(options.chatId)
     if (isRemote) {
       parts.push(
         `[遠端配對模式]\n` +
@@ -251,7 +249,6 @@ export function runClaude(options: RunOptions): void {
     (env.REMOTE_ENABLED && getPairing(options.chatId, options.threadId)?.connected === true) ||
     isVirtualChat(options.chatId)
   )
-  console.error(`[claude-runner] MCP decision: chatId=${options.chatId} isRemoteSession=${!!isRemoteSession}`)
 
   const mcpConfigs: string[] = []
   if (env.MCP_BROWSER) {
@@ -273,12 +270,10 @@ export function runClaude(options: RunOptions): void {
       // Virtual Electron chat — look up the agent's code from virtual-chat-store
       remoteCode = getVirtualChatPairingCode(options.chatId)
     }
-    console.error(`[claude-runner] remoteCode=${remoteCode} chatId=${options.chatId}`)
     if (remoteCode) {
       const port = getRelayPort() || env.RELAY_PORT
       remoteMcpConfigPath = generateRemoteMcpConfig(port, remoteCode)
       mcpConfigs.push(remoteMcpConfigPath)
-      console.error(`[claude-runner] MCP config generated: port=${port} code=${remoteCode}`)
     }
   }
 
