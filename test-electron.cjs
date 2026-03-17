@@ -93,22 +93,26 @@ for (const [label, p] of checks) {
   existsSync(p) ? ok(label) : fail(label)
 }
 
-// 6. Try actually spawning electron with a minimal script
+// 6. Try actually spawning electron with a temp script file (not -e, which Electron may not support)
 console.log('\n--- Spawning electron with minimal test script (GPU disabled) ---\n')
-const testResult = spawnSync(electronBin, ['--disable-gpu', '--no-sandbox', '--disable-software-rasterizer', '-e', `
+const tmpScript = join(root, 'data', '_electron_test.cjs')
+require('fs').writeFileSync(tmpScript, `
   const { app } = require('electron');
   app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('no-sandbox');
   app.whenReady().then(() => {
-    console.log('ELECTRON_OK');
+    process.stdout.write('ELECTRON_OK');
     app.quit();
   });
-  app.on('ready', () => {});
-  setTimeout(() => { console.log('ELECTRON_TIMEOUT'); app.quit(); }, 5000);
-`], {
+  setTimeout(() => { process.stdout.write('ELECTRON_TIMEOUT'); app.quit(); }, 10000);
+`, 'utf-8')
+const testResult = spawnSync(electronBin, [tmpScript], {
   timeout: 20000,
-  windowsHide: true,
-  env: { ...process.env, ELECTRON_ENABLE_LOGGING: 'true', ELECTRON_NO_ATTACH_CONSOLE: '' },
+  windowsHide: false,
+  env: { ...process.env, ELECTRON_ENABLE_LOGGING: 'true' },
 })
+try { require('fs').unlinkSync(tmpScript) } catch {}
 
 const testOut = testResult.stdout?.toString().trim() || ''
 const testErr = testResult.stderr?.toString().trim() || ''
