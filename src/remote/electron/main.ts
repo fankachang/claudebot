@@ -303,7 +303,7 @@ ipcMain.handle('toggle-always-on-top', () => {
 
 let isCompact = false
 const FULL_SIZE = { width: 420, height: 640 }
-const COMPACT_SIZE = { width: 340, height: 80 }
+const COMPACT_SIZE = { width: 340, height: 280 }
 
 ipcMain.handle('toggle-compact', () => {
   if (!mainWindow) return false

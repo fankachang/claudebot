@@ -444,9 +444,15 @@ body {
 
 /* --- Compact Mode --- */
 
-body.compact .messages,
 body.compact .connect-panel,
 body.compact .typing-indicator { display: none !important; }
+
+body.compact .messages {
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+body.compact .bubble { padding: 6px 10px; font-size: 12px; }
 
 body.compact .titlebar { border-bottom: none; }
 
@@ -456,3 +462,44 @@ body.compact .input-bar {
 }
 
 body.compact .input-bar input { font-size: 12px; padding: 6px 10px; }
+
+/* --- Command Palette --- */
+
+.input-bar { position: relative; }
+
+.command-palette {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 2px solid #000;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.cmd-item {
+  padding: 8px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+}
+
+.cmd-item:hover, .cmd-item.active { background: #f0f0f0; }
+.cmd-item:first-child { border-radius: 6px 6px 0 0; }
+
+.cmd-name {
+  font-weight: 700;
+  color: #000;
+  min-width: 80px;
+}
+
+.cmd-desc {
+  color: #888;
+  font-size: 11px;
+}
