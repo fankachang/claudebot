@@ -39,7 +39,7 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   elog(`[electron] unhandledRejection: ${reason}`)
 })
-import type { ToolDispatcher } from '../tool-handlers.js'
+import type { ToolDispatcher } from '../tool-handlers/index.js'
 import type {
   AgentRegister,
   ToolCallRequest,
@@ -194,7 +194,7 @@ function disconnect(): void {
 ipcMain.handle('connect', async (_event, relayUrl: string, code: string, baseDir: string) => {
   const resolvedDir = resolve(baseDir || process.cwd())
   // Lazy-load tool-handlers only in agent mode (heavy module with child_process deps)
-  const { createToolDispatcher } = await import('../tool-handlers.js')
+  const { createToolDispatcher } = await import('../tool-handlers/index.js')
   toolDispatcher = createToolDispatcher(resolvedDir)
   shouldReconnect = true
   log(`Working directory: ${resolvedDir}`)
@@ -407,7 +407,7 @@ ipcMain.handle('license-connect', async (_event, licenseKey: string) => {
 
   // Also start agent connection for remote tool execution
   const projDir = getProjectsBaseDir()
-  const { createToolDispatcher } = await import('../tool-handlers.js')
+  const { createToolDispatcher } = await import('../tool-handlers/index.js')
   toolDispatcher = createToolDispatcher(projDir)
   shouldReconnect = true
   connectToRelay(relayUrl, licenseKey)
@@ -438,7 +438,7 @@ ipcMain.handle('set-projects-dir', async (_event, dir: string) => {
   const resolvedDir = resolve(dir)
   saveConfig({ projectsBaseDir: resolvedDir })
   // Recreate tool dispatcher with new base dir
-  const { createToolDispatcher } = await import('../tool-handlers.js')
+  const { createToolDispatcher } = await import('../tool-handlers/index.js')
   toolDispatcher = createToolDispatcher(resolvedDir)
   elog(`[electron] projectsBaseDir set to: ${resolvedDir}`)
   return resolvedDir
@@ -548,7 +548,7 @@ app.whenReady().then(async () => {
     // Chat mode also needs agent connection for remote tool execution.
     // Without this, Claude has no remote_* tools and can't operate on this machine.
     const projDir = getProjectsBaseDir()
-    const { createToolDispatcher } = await import('../tool-handlers.js')
+    const { createToolDispatcher } = await import('../tool-handlers/index.js')
     toolDispatcher = createToolDispatcher(projDir)
     shouldReconnect = true
     elog(`[electron] chat mode: agent baseDir=${projDir}`)
@@ -567,7 +567,7 @@ app.whenReady().then(async () => {
       chatClientMsgId = 1
 
       const projDir = getProjectsBaseDir()
-      const { createToolDispatcher } = await import('../tool-handlers.js')
+      const { createToolDispatcher } = await import('../tool-handlers/index.js')
       toolDispatcher = createToolDispatcher(projDir)
       shouldReconnect = true
       elog(`[electron] license auto-connect: key=${config.licenseKey.slice(0, 7)}... relay=${relayUrl}`)
